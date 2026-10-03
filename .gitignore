@@ -1,0 +1,6 @@
+node_modules/
+# 生成物（音声・動画・検査結果）はGitで管理しない
+build/
+out/
+*.mp4
+*.wav

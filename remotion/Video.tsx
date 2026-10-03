@@ -1,0 +1,81 @@
+import "@fontsource/noto-sans-jp/400.css";
+import "@fontsource/noto-sans-jp/700.css";
+import "@fontsource/jetbrains-mono/400.css";
+import { useEffect, useState } from "react";
+import { AbsoluteFill, Audio, Sequence, continueRender, delayRender, staticFile } from "remotion";
+import type { ResolvedElement, ResolvedScene, Timeline } from "../src/schema";
+import { getTheme, type Theme } from "./theme";
+import { appearStyle, useAppear } from "./anim";
+import { Bullets } from "./parts/Bullets";
+import { Code } from "./parts/Code";
+import { Text } from "./parts/Text";
+import { Title } from "./parts/Title";
+
+export type VideoProps = { timeline: Timeline; withAudio?: boolean };
+
+/** フォント読み込み前のフレームを書き出さないようにする */
+function useFontsReady() {
+  const [handle] = useState(() => delayRender("フォント読み込み待ち"));
+  useEffect(() => {
+    requestAnimationFrame(() => {
+      document.fonts.ready.then(() => continueRender(handle));
+    });
+  }, [handle]);
+}
+
+export const Video: React.FC<VideoProps> = ({ timeline, withAudio = true }) => {
+  useFontsReady();
+  const theme = getTheme(timeline.meta.theme);
+  return (
+    <AbsoluteFill data-gmm-canvas style={{ background: theme.background, fontFamily: theme.fontFamily }}>
+      {timeline.scenes.map((scene) => (
+        <Sequence key={scene.id} from={scene.start} durationInFrames={scene.durationInFrames} name={`${scene.id} ${scene.heading}`}>
+          <SceneView scene={scene} theme={theme} />
+          {withAudio &&
+            scene.sentences.map(
+              (s, i) =>
+                s.audio && (
+                  <Sequence key={i} from={s.from} durationInFrames={s.durationInFrames} layout="none">
+                    <Audio src={staticFile(s.audio)} />
+                  </Sequence>
+                ),
+            )}
+        </Sequence>
+      ))}
+    </AbsoluteFill>
+  );
+};
+
+const SceneView: React.FC<{ scene: ResolvedScene; theme: Theme }> = ({ scene, theme }) => {
+  const head = useAppear(0, 12);
+  return (
+    <AbsoluteFill data-gmm-scene={scene.id} style={{ boxSizing: "border-box", padding: theme.padding, display: "flex", flexDirection: "column", gap: 56 }}>
+      {scene.showHeading && (
+        <div data-gmm-el="heading" style={{ ...appearStyle(head, -16), display: "flex", alignItems: "center", gap: 28, flex: "none" }}>
+          <div style={{ width: 14, alignSelf: "stretch", borderRadius: 7, background: theme.accent }} />
+          <div data-gmm-text style={{ fontSize: theme.fontSize * 1.2, fontWeight: 700, color: theme.text, lineHeight: 1.3 }}>
+            {scene.heading}
+          </div>
+        </div>
+      )}
+      <div data-gmm-content style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column", gap: 48 }}>
+        {scene.elements.map((el, i) => (
+          <ElementView key={i} el={el} theme={theme} />
+        ))}
+      </div>
+    </AbsoluteFill>
+  );
+};
+
+const ElementView: React.FC<{ el: ResolvedElement; theme: Theme }> = ({ el, theme }) => {
+  switch (el.type) {
+    case "title":
+      return <Title title={el.title} subtitle={el.subtitle} from={el.from} theme={theme} />;
+    case "bullets":
+      return <Bullets items={el.items} theme={theme} />;
+    case "code":
+      return <Code lines={el.lines} background={el.background} lang={el.lang} from={el.from} highlights={el.highlights} theme={theme} />;
+    case "text":
+      return <Text text={el.text} variant={el.variant} from={el.from} theme={theme} />;
+  }
+};
