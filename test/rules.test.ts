@@ -42,7 +42,7 @@ describe("checkScene", () => {
     start: 0,
     durationInFrames: 300,
     sentences: [{ text: "a", from: 12, durationInFrames: 60, mouth: [] }],
-    elements: [{ type: "text", text: "x", variant: "plain", from: 0 }],
+    elements: [{ type: "text", text: "x", html: "x", variant: "plain", from: 0 }],
     ...over,
   });
   const ruleNames = (s: ResolvedScene) => checkScene(s, timeline).map((i) => i.rule);
@@ -52,7 +52,7 @@ describe("checkScene", () => {
   });
 
   it("短いシーン・表示時間の短い部品・長すぎる文を警告する", () => {
-    expect(ruleNames(scene({ durationInFrames: 60, elements: [{ type: "text", text: "x", variant: "plain", from: 30 }] }))).toEqual([
+    expect(ruleNames(scene({ durationInFrames: 60, elements: [{ type: "text", text: "x", html: "x", variant: "plain", from: 30 }] }))).toEqual([
       "short-scene",
       "short-visible",
     ]);
@@ -60,8 +60,8 @@ describe("checkScene", () => {
   });
 
   it("情報量の多すぎを警告する", () => {
-    const items = Array.from({ length: 7 }, (_, i) => ({ text: `項目${i}`, from: 0 }));
+    const items = Array.from({ length: 7 }, (_, i) => ({ text: `項目${i}`, html: "", from: 0 }));
     expect(ruleNames(scene({ elements: [{ type: "bullets", from: 0, items }] }))).toEqual(["density"]);
-    expect(ruleNames(scene({ elements: [{ type: "text", text: "あ".repeat(200), variant: "plain", from: 0 }] }))).toEqual(["density"]);
+    expect(ruleNames(scene({ elements: [{ type: "text", text: "あ".repeat(200), html: "", variant: "plain", from: 0 }] }))).toEqual(["density"]);
   });
 });

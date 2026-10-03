@@ -21,7 +21,7 @@ async function buildPage(outDir: string): Promise<void> {
     outdir: dir,
     format: "iife",
     jsx: "automatic",
-    loader: { ".woff2": "file", ".woff": "file" },
+    loader: { ".woff2": "file", ".woff": "file", ".ttf": "file" },
     define: { "process.env.NODE_ENV": '"production"' },
     logLevel: "error",
   });
@@ -38,6 +38,12 @@ const MIME: Record<string, string> = {
   ".png": "image/png",
   ".woff2": "font/woff2",
   ".woff": "font/woff",
+  ".ttf": "font/ttf",
+  ".jpg": "image/jpeg",
+  ".jpeg": "image/jpeg",
+  ".svg": "image/svg+xml",
+  ".webp": "image/webp",
+  ".gif": "image/gif",
 };
 
 /** 出力ディレクトリを配信するだけのHTTPサーバー（file:// だとスクリプトとフォントが読めないため） */

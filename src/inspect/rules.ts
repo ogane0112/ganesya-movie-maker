@@ -28,6 +28,7 @@ export const LIMITS = {
   minFontPx: 28,
   maxBullets: 6,
   maxCodeLines: 14,
+  maxDiagramNodes: 5,
   /** 1画面に出す文字数の上限（見出しを除く） */
   maxChars: 160,
   /** 部品が画面に出ている時間の下限（秒） */
@@ -86,7 +87,7 @@ export function checkLayout(m: Measurement, sceneLabel: string): Issue[] {
 
   for (const t of m.texts) {
     if (t.clipped) {
-      push("error", "clipped", `「${t.text}」が横にはみ出して切れています`, "行を短くするか、改行してください");
+      push("error", "clipped", `「${t.text}」が枠から横にはみ出しています`, "文字を短くするか、改行してください（図解なら箱を減らすか direction=TB に）");
     }
     if (t.fontSize < LIMITS.minFontPx) {
       push("warn", "font-size", `「${t.text}」の文字が小さすぎます（${t.fontSize}px < ${LIMITS.minFontPx}px）`, "文字を大きくできるよう内容を減らしてください");
@@ -160,6 +161,20 @@ export function checkScene(scene: ResolvedScene, timeline: Timeline): Issue[] {
       }
       starts.push({ label: "コード", from: el.from });
       el.highlights.forEach((h) => starts.push({ label: `コードのハイライト（${h.lines.join(",")}行目）`, from: h.from }));
+    } else if (el.type === "diagram") {
+      if (el.nodes.length > LIMITS.maxDiagramNodes) {
+        push("warn", "density", `図解の箱が${el.nodes.length}個あります（上限 ${LIMITS.maxDiagramNodes}）`, "箱をまとめるか、図を2つに分けてください");
+      }
+      el.nodes.forEach((n) => {
+        chars += [...n.text].length;
+        starts.push({ label: `図の箱「${n.text.slice(0, 15)}」`, from: n.from });
+      });
+      el.edges.forEach((e) => e && starts.push({ label: `図の矢印${e.label ? `「${e.label}」` : ""}`, from: e.from }));
+    } else if (el.type === "math") {
+      starts.push({ label: "数式", from: el.from });
+    } else if (el.type === "image") {
+      chars += [...(el.caption ?? "")].length;
+      starts.push({ label: "画像", from: el.from });
     } else if (el.type === "title") {
       chars += [...el.title].length + [...(el.subtitle ?? "")].length;
       starts.push({ label: "タイトル", from: el.from });

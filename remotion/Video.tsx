@@ -1,6 +1,7 @@
 import "@fontsource/noto-sans-jp/400.css";
 import "@fontsource/noto-sans-jp/700.css";
 import "@fontsource/jetbrains-mono/400.css";
+import "katex/dist/katex.min.css";
 import { useEffect, useState } from "react";
 import { AbsoluteFill, Audio, Sequence, continueRender, delayRender, staticFile } from "remotion";
 import type { ResolvedElement, ResolvedScene, Timeline } from "../src/schema";
@@ -11,6 +12,9 @@ import { computeLayout, type Layout } from "./layout";
 import { Subtitle } from "./Subtitle";
 import { Bullets } from "./parts/Bullets";
 import { Code } from "./parts/Code";
+import { Diagram } from "./parts/Diagram";
+import { ImageView } from "./parts/Image";
+import { MathBlock } from "./parts/Math";
 import { Text } from "./parts/Text";
 import { Title } from "./parts/Title";
 
@@ -99,6 +103,12 @@ const ElementView: React.FC<{ el: ResolvedElement; theme: Theme }> = ({ el, them
     case "code":
       return <Code lines={el.lines} background={el.background} lang={el.lang} from={el.from} highlights={el.highlights} theme={theme} />;
     case "text":
-      return <Text text={el.text} variant={el.variant} from={el.from} theme={theme} />;
+      return <Text html={el.html} variant={el.variant} from={el.from} theme={theme} />;
+    case "math":
+      return <MathBlock html={el.html} from={el.from} theme={theme} />;
+    case "image":
+      return <ImageView src={el.src} caption={el.caption} from={el.from} theme={theme} />;
+    case "diagram":
+      return <Diagram {...el} theme={theme} />;
   }
 };

@@ -42,11 +42,40 @@ export const TextElement = z.object({
   at: At.optional(),
 });
 
+export const MathElement = z.object({
+  type: z.literal("math"),
+  /** TeX（KaTeX で描く） */
+  tex: z.string(),
+  at: At.optional(),
+});
+
+export const ImageElement = z.object({
+  type: z.literal("image"),
+  /** 台本からの相対パス（パイプラインで public/ にコピーされる） */
+  src: z.string(),
+  caption: z.string().optional(),
+  at: At.optional(),
+});
+
+const Arrow = z.enum(["->", "<-", "<->", "--"]);
+
+export const DiagramElement = z.object({
+  type: z.literal("diagram"),
+  /** LR: 横に並べる / TB: 縦に並べる */
+  direction: z.enum(["LR", "TB"]).default("LR"),
+  nodes: z.array(z.object({ text: z.string(), at: At.optional(), emphasisAt: At.optional() })).min(1),
+  /** edges[i] は nodes[i] と nodes[i+1] の間の矢印（なければ null） */
+  edges: z.array(z.object({ arrow: Arrow, label: z.string().optional(), at: At.optional() }).nullable()),
+});
+
 export const Element = z.discriminatedUnion("type", [
   TitleElement,
   BulletsElement,
   CodeElement,
   TextElement,
+  MathElement,
+  ImageElement,
+  DiagramElement,
 ]);
 
 export const Scene = z.object({
@@ -95,6 +124,9 @@ export type TitleElement = z.infer<typeof TitleElement>;
 export type BulletsElement = z.infer<typeof BulletsElement>;
 export type CodeElement = z.infer<typeof CodeElement>;
 export type TextElement = z.infer<typeof TextElement>;
+export type MathElement = z.infer<typeof MathElement>;
+export type ImageElement = z.infer<typeof ImageElement>;
+export type DiagramElement = z.infer<typeof DiagramElement>;
 export type Element = z.infer<typeof Element>;
 export type Scene = z.infer<typeof Scene>;
 export type Meta = z.infer<typeof Meta>;
@@ -128,11 +160,21 @@ export type CodeToken = { content: string; color?: string };
 
 export type ResolvedElement =
   | (Omit<TitleElement, "at"> & { from: number })
-  | (Omit<TextElement, "at"> & { from: number })
+  /** html: 本文中の $…$ を KaTeX で描いた HTML（文字はエスケープ済み） */
+  | (Omit<TextElement, "at"> & { from: number; html: string })
+  | (Omit<ImageElement, "at"> & { from: number })
+  | { type: "math"; from: number; tex: string; html: string }
   | {
       type: "bullets";
       from: number;
-      items: { text: string; from: number; emphasisFrom?: number }[];
+      items: { text: string; html: string; from: number; emphasisFrom?: number }[];
+    }
+  | {
+      type: "diagram";
+      from: number;
+      direction: "LR" | "TB";
+      nodes: { text: string; from: number; emphasisFrom?: number }[];
+      edges: ({ arrow: "->" | "<-" | "<->" | "--"; label?: string; from: number } | null)[];
     }
   | {
       type: "code";

@@ -127,3 +127,41 @@ subtitles: srt
     expect(d.scenes[0].sentences).toEqual([{ text: "S3に保存します。", speech: "エススリーに保存します。" }, { text: "普通の文。" }]);
   });
 });
+
+describe("図解・数式・画像", () => {
+  it(":::diagram は箱と、その間の矢印を読む", () => {
+    const d = parseScript(`## A
+
+一。二。三。
+
+:::diagram direction=tb
+- {1} 利用者
+-> {2} HTTPS
+- {2} API
+- {3} DB {!3}
+<-
+- 外部
+:::
+`);
+    expect(d.scenes[0].elements[0]).toEqual({
+      type: "diagram",
+      direction: "TB",
+      nodes: [{ text: "利用者", at: 1 }, { text: "API", at: 2 }, { text: "DB", at: 3, emphasisAt: 3 }, { text: "外部" }],
+      edges: [{ arrow: "->", label: "HTTPS", at: 2 }, null, { arrow: "<-" }],
+    });
+  });
+
+  it("図解の書式の誤りを報告する", () => {
+    expect(() => parseScript("## A\n\n一。\n\n:::diagram\n-> x\n- a\n:::\n")).toThrow("矢印「-> x」の前に箱がありません");
+    expect(() => parseScript("## A\n\n一。\n\n:::diagram\n- a\n->\n:::\n")).toThrow("最後の矢印の先に箱がありません");
+  });
+
+  it(":::math と :::image", () => {
+    const d = parseScript('## A\n\n一。\n\n:::math {1}\n\\\\frac{1}{n}\n:::\n\n:::image src="a b.png"\n説明\n:::\n');
+    expect(d.scenes[0].elements).toEqual([
+      { type: "math", tex: "\\\\frac{1}{n}", at: 1 },
+      { type: "image", src: "a b.png", caption: "説明" },
+    ]);
+    expect(() => parseScript("## A\n\n一。\n\n:::image\n:::\n")).toThrow('src="画像のパス"');
+  });
+});

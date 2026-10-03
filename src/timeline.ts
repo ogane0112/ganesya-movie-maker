@@ -1,5 +1,6 @@
 // F3: 音声の長さからタイミングを決め、レンダリング用の timeline.json を作る。
 // 部品の出現・強調は「対応するナレーション文の開始フレーム」に合わせる。
+import katex from "katex";
 import { codeToTokens } from "shiki";
 import type { Theme } from "../remotion/theme.js";
 import type {
@@ -70,6 +71,7 @@ async function resolveElement(
     case "bullets": {
       const items = el.items.map((it) => ({
         text: it.text,
+        html: richText(it.text),
         from: at(it.at),
         emphasisFrom: it.emphasisAt === undefined ? undefined : at(it.emphasisAt),
       }));
@@ -92,6 +94,40 @@ async function resolveElement(
     case "title":
       return { type: "title", title: el.title, subtitle: el.subtitle, from: at(el.at) };
     case "text":
-      return { type: "text", text: el.text, variant: el.variant, from: at(el.at) };
+      return { type: "text", text: el.text, html: richText(el.text), variant: el.variant, from: at(el.at) };
+    case "math":
+      return { type: "math", tex: el.tex, html: tex(el.tex, true), from: at(el.at) };
+    case "image":
+      return { type: "image", src: el.src, caption: el.caption, from: at(el.at) };
+    case "diagram": {
+      const nodes = el.nodes.map((n) => ({
+        text: n.text,
+        from: at(n.at),
+        emphasisFrom: n.emphasisAt === undefined ? undefined : at(n.emphasisAt),
+      }));
+      // 矢印は、指定がなければ両端の箱がそろったときに出す
+      const edges = el.edges.map((e, i) =>
+        e && { arrow: e.arrow, label: e.label, from: e.at === undefined ? Math.max(nodes[i].from, nodes[i + 1].from) : at(e.at) },
+      );
+      return { type: "diagram", direction: el.direction, from: Math.min(...nodes.map((n) => n.from)), nodes, edges };
+    }
   }
+}
+
+function tex(src: string, display: boolean): string {
+  try {
+    return katex.renderToString(src, { displayMode: display, throwOnError: true, output: "html" });
+  } catch (e) {
+    throw new Error(`数式を描けません「${src}」: ${(e as Error).message}`);
+  }
+}
+
+const escapeHtml = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+
+/** 本文中の $…$ を KaTeX のインライン数式にし、それ以外はエスケープした HTML を返す */
+export function richText(text: string): string {
+  return text
+    .split(/(\$[^$\n]+\$)/)
+    .map((part) => (/^\$[^$]+\$$/.test(part) ? tex(part.slice(1, -1), false) : escapeHtml(part)))
+    .join("");
 }

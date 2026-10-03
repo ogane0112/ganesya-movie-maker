@@ -211,9 +211,53 @@ function buildElement(kind: string, args: BlockArgs, body: string[]): unknown {
         at: args.at ?? t.at,
       };
     }
+    case "math": {
+      const tex = body.join("\n").trim();
+      if (!tex) throw new Error(":::math に数式がありません");
+      return { type: "math", tex, at: args.at };
+    }
+    case "image": {
+      if (!args.params.src) throw new Error(':::image には src="画像のパス" が必要です');
+      const caption = body.map((l) => l.trim()).filter(Boolean).join(" ") || undefined;
+      return { type: "image", src: args.params.src, caption, at: args.at };
+    }
+    case "diagram":
+      return buildDiagram(args, body);
     default:
-      throw new Error(`未知の部品 :::${kind}（使えるのは title / bullets / code / text / callout）`);
+      throw new Error(`未知の部品 :::${kind}（使えるのは title / bullets / code / text / callout / math / image / diagram）`);
   }
+}
+
+/**
+ * 図解（箱と矢印）。上から順に箱を並べ、箱と箱の間の行で矢印を指定する。
+ *   - {1} クライアント        箱（{n} で出す文、{!n} で強調）
+ *   -> {2} HTTPS              矢印（-> <- <-> --）。後ろはラベル
+ *   - {2} API Gateway
+ */
+function buildDiagram(args: BlockArgs, body: string[]) {
+  const nodes: ReturnType<typeof takeMarkers>[] = [];
+  const edges: ({ arrow: string; label?: string; at?: number } | null)[] = [];
+  let pendingEdge: { arrow: string; label?: string; at?: number } | null = null;
+  for (const raw of body) {
+    const line = raw.trim();
+    if (!line) continue;
+    const edge = line.match(/^(<->|->|<-|--)\s*(.*)$/);
+    if (edge) {
+      if (!nodes.length) throw new Error(`:::diagram の矢印「${line}」の前に箱がありません`);
+      if (pendingEdge) throw new Error(`:::diagram で矢印が続いています「${line}」`);
+      const m = takeMarkers(edge[2]);
+      pendingEdge = { arrow: edge[1], label: m.text || undefined, at: m.at };
+      continue;
+    }
+    const node = line.match(/^[-*]\s+(.*)$/);
+    if (!node) throw new Error(`:::diagram の行は「- 箱」か「-> ラベル」です: ${line}`);
+    if (nodes.length) edges.push(pendingEdge);
+    pendingEdge = null;
+    nodes.push(takeMarkers(node[1]));
+  }
+  if (pendingEdge) throw new Error(":::diagram の最後の矢印の先に箱がありません");
+  if (!nodes.length) throw new Error(":::diagram に箱（- で始まる行）がありません");
+  return { type: "diagram", direction: (args.params.direction ?? "LR").toUpperCase(), nodes, edges };
 }
 
 /** highlight="{1}:1 {2}:2-3,5" → [{at:1, lines:[1]}, {at:2, lines:[2,3,5]}] */
@@ -236,6 +280,8 @@ function referencedSentences(el: Element): number[] {
   switch (el.type) {
     case "bullets":
       return el.items.flatMap((x) => [x.at, x.emphasisAt]).filter((n): n is number => n !== undefined);
+    case "diagram":
+      return [...el.nodes.flatMap((x) => [x.at, x.emphasisAt]), ...el.edges.map((e) => e?.at)].filter((n): n is number => n !== undefined);
     case "code":
       return [el.at, ...el.highlights.map((h) => h.at)].filter((n): n is number => n !== undefined);
     default:

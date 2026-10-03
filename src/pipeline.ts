@@ -1,8 +1,10 @@
 // 台本 → シーン定義 → 音声 → タイムライン までをまとめて行う。
 // どのコマンドもここを通るので、台本を直したら同じコマンドを打ち直すだけでよい
 // （音声はキャッシュされるので、変えた文だけ作り直される）。
-import { mkdir, readFile, writeFile } from "node:fs/promises";
-import { basename, extname, join } from "node:path";
+import { createHash } from "node:crypto";
+import { existsSync } from "node:fs";
+import { copyFile, mkdir, readFile, writeFile } from "node:fs/promises";
+import { basename, dirname, extname, join } from "node:path";
 import { loadCharacter } from "./character.js";
 import { parseScript } from "./parse.js";
 import { SceneDoc, type Timeline } from "./schema.js";
@@ -39,7 +41,7 @@ export async function loadSceneDoc(input: string): Promise<SceneDoc> {
 export async function prepare(input: string, opts: PipelineOptions): Promise<{ doc: SceneDoc; timeline: Timeline; outDir: string }> {
   const outDir = opts.out ?? defaultOutDir(input);
   await mkdir(outDir, { recursive: true });
-  const doc = await loadSceneDoc(input);
+  const doc = await copyImages(await loadSceneDoc(input), input, outDir);
   await writeFile(join(outDir, "scenes.json"), JSON.stringify(doc, null, 2));
   const audio = await synthesizeAll(doc, outDir, { provider: opts.tts, voicevoxUrl: opts.voicevoxUrl, log: opts.log });
   const character = await loadCharacter(doc, input, outDir);
@@ -51,4 +53,21 @@ export async function prepare(input: string, opts: PipelineOptions): Promise<{ d
   if (doc.meta.subtitles !== "none") await writeFile(join(outDir, "subtitles.srt"), toSrt(timeline));
   opts.log(`タイムライン: ${timeline.scenes.length}シーン / ${(timeline.durationInFrames / timeline.meta.fps).toFixed(1)}秒`);
   return { doc, timeline, outDir };
+}
+
+/** :::image の画像を public/images/ にコピーし、src を public からの相対パスにする */
+async function copyImages(doc: SceneDoc, input: string, outDir: string): Promise<SceneDoc> {
+  for (const scene of doc.scenes) {
+    for (const el of scene.elements) {
+      if (el.type !== "image" || el.src.startsWith("images/")) continue;
+      const from = join(dirname(input), el.src);
+      if (!existsSync(from)) throw new Error(`画像がありません: ${from}（シーン「${scene.heading}」）`);
+      const body = await readFile(from);
+      const name = `images/${createHash("sha1").update(body).digest("hex").slice(0, 16)}${extname(from).toLowerCase()}`;
+      await mkdir(join(outDir, "public/images"), { recursive: true });
+      await copyFile(from, join(outDir, "public", name));
+      el.src = name;
+    }
+  }
+  return doc;
 }

@@ -1,8 +1,8 @@
 import type { Theme } from "../theme";
 import { appearStyle, useAppear } from "../anim";
 
-export const Text: React.FC<{ text: string; variant: "plain" | "callout"; from: number; theme: Theme }> = ({
-  text,
+export const Text: React.FC<{ html: string; variant: "plain" | "callout"; from: number; theme: Theme }> = ({
+  html,
   variant,
   from,
   theme,
@@ -27,8 +27,7 @@ export const Text: React.FC<{ text: string; variant: "plain" | "callout"; from: 
           fontWeight: 700,
         }),
       }}
-    >
-      {text}
-    </div>
+      dangerouslySetInnerHTML={{ __html: html }}
+    />
   );
 };

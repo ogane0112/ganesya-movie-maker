@@ -66,3 +66,13 @@ describe("buildTimeline", () => {
     await expect(buildTimeline(doc, { ...audio, sentences: audio.sentences.slice(1) }, THEMES.wakaba)).rejects.toThrow("音声が揃っていません");
   });
 });
+
+describe("richText", () => {
+  it("$…$ だけを KaTeX にし、それ以外はエスケープする", async () => {
+    const { richText } = await import("../src/timeline");
+    const html = richText("<b>負荷</b> は $\\frac{1}{n}$");
+    expect(html.startsWith("&lt;b&gt;負荷&lt;/b&gt; は ")).toBe(true);
+    expect(html).toContain('class="katex"');
+    expect(() => richText("$\\frac{1}{$")).toThrow("数式を描けません");
+  });
+});

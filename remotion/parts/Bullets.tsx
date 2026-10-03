@@ -2,7 +2,7 @@ import { interpolate, useCurrentFrame } from "remotion";
 import type { Theme } from "../theme";
 import { appearStyle, useAppear } from "../anim";
 
-type Item = { text: string; from: number; emphasisFrom?: number };
+type Item = { text: string; html: string; from: number; emphasisFrom?: number };
 
 const BulletItem: React.FC<{ item: Item; theme: Theme }> = ({ item, theme }) => {
   const frame = useCurrentFrame();
@@ -30,7 +30,7 @@ const BulletItem: React.FC<{ item: Item; theme: Theme }> = ({ item, theme }) => 
           backgroundSize: `${mark}% 40%`,
         }}
       >
-        {item.text}
+        <span dangerouslySetInnerHTML={{ __html: item.html }} />
       </span>
     </li>
   );
