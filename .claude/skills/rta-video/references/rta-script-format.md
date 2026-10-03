@@ -11,12 +11,14 @@ category: Any%
 gameVolume: 0.5                # ゲーム音（実況中は自動で下げる。音量は自動でそろう）
 bgm: maou:piano38              # 任意。gmm bgm list
 se: none                       # 区間の切り替わりの効果音（default / none）
+biimFrame: classic             # 画面（classic: おなじみの枠 / simple: 枠なし）
+# frameImage: frame.png        # 任意。枠を画像で差し替える（1920×1080 透過 PNG）
 speakers:                      # 話者の名前: VOICEVOX の声
   ずんだもん: zundamon
   めたん: metan
 characters:                    # 話者の名前: 立ち絵
   ずんだもん: zundamon
-  めたん: builtin-metan        # 四国めたんの素材がないときの代役
+  めたん: metan                # 素材がなければ builtin-metan で代用
 glossary:
   乱数: ゲームの中で、毎回ちがう結果を決めるしくみ
 ---

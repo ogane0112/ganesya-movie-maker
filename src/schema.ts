@@ -150,6 +150,10 @@ export const Meta = z.object({
   runEnd: z.union([z.string(), z.number()]).optional(),
   /** ゲーム実況: レギュレーション（Any% など） */
   category: z.string().optional(),
+  /** ゲーム実況: 枠のデザイン。classic: 定番の biim 枠（右上・右・下の箱と左下の円）/ simple: 箱を並べただけ */
+  biimFrame: z.enum(["classic", "simple"]).default("classic"),
+  /** ゲーム実況: 枠の画像（1920×1080 の PNG。ゲームの所を透明にしたもの）。classic の配置のまま、線の代わりに重ねる */
+  frameImage: z.string().optional(),
   /** ゲーム実況: ゲーム音の大きさ（実況がないとき）。実況中は自動で下げる */
   gameVolume: z.number().min(0).max(1).default(0.5),
   fps: z.number().int().default(30),
@@ -299,6 +303,8 @@ export type ResolvedCharacter = {
       /** 元画像（PSD）のキャンバスサイズと、そのうち表示する範囲 */
       canvas: { width: number; height: number };
       crop: { x: number; y: number; width: number; height: number };
+      /** 顔の中心（元画像の px） */
+      face?: { x: number; y: number };
       layers: CharacterLayer[];
       expressions: Record<string, CharacterStates>;
     }
@@ -349,4 +355,7 @@ export type RunInfo = {
   footage: FootageSegment[];
   /** ゲーム音（実況がないときの大きさ） */
   gameVolume: number;
+  frame: "classic" | "simple";
+  /** 枠の画像（public/ からの相対パス） */
+  frameImage?: string;
 };

@@ -37,6 +37,8 @@ export const CharacterFile = PartSet.extend({
   crop: z.object({ x: z.number(), y: z.number(), width: z.number(), height: z.number() }).optional(),
   /** 画面上の高さ（px, 1080p 換算） */
   height: z.number().default(640),
+  /** 顔の中心（元画像の px）。ゲーム実況の円の中に顔を合わせるのに使う。省略時は表示範囲の上のほうの中央 */
+  face: z.object({ x: z.number(), y: z.number() }).optional(),
   default: z.string().default("normal"),
   /** すべての表情に共通のレイヤー（体・服など） */
   base: Parts.default([]),
@@ -189,6 +191,7 @@ async function resolveLayers(def: CharacterFile, dir: string, outDir: string): P
     crop,
     layers,
     expressions,
+    ...(def.face && { face: def.face }),
   };
 }
 

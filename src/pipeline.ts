@@ -108,7 +108,16 @@ async function prepareBiim(
   const theme = await loadTheme(doc.meta.theme, input, outDir);
   const cast = await loadCast(doc, input, outDir);
   const audioAssets = await prepareAudioAssets(doc.meta, input, outDir, { strict: opts.requireVoice, log: opts.log });
-  const timeline = buildBiimTimeline(doc, audio, theme, cast, { src, ...probe }, audioAssets, gameGain);
+  // 枠の画像は public/frames/ に置く
+  let frameImage: string | undefined;
+  if (doc.meta.frameImage) {
+    const from = join(dirname(input), doc.meta.frameImage);
+    if (!existsSync(from)) throw new Error(`枠の画像がありません: ${from}`);
+    frameImage = `frames/${basename(from)}`;
+    await mkdir(join(outDir, "public/frames"), { recursive: true });
+    await copyFile(from, join(outDir, "public", frameImage));
+  }
+  const timeline = buildBiimTimeline(doc, audio, theme, cast, { src, ...probe }, audioAssets, gameGain, frameImage);
   await writeFile(join(outDir, "timeline.json"), JSON.stringify(timeline, null, 2));
   if (doc.meta.subtitles !== "none") await writeFile(join(outDir, "subtitles.srt"), toSrt(timeline));
   const credits = [audio.credit, ...cast.map((c) => c.character?.credit), audioAssets.bgm?.credit].filter(Boolean);

@@ -11,7 +11,7 @@ speakers:
   めたん: metan
 characters:
   ずんだもん: zundamon
-  めたん: builtin-metan        # 四国めたんの立ち絵素材がないので代役
+  めたん: metan
 glossary:
   RTA: ゲームを始めてからクリアするまでの、実際の時間の速さを競う遊び方
   Any%: どんな方法でもいいので、最速でクリアするルール

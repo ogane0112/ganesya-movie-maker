@@ -74,6 +74,7 @@ export function buildBiimTimeline(
   footage: FootageInfo,
   audioAssets: TimelineAudio = {},
   gameGain = 1,
+  frameImage?: string,
 ): Timeline {
   const { fps } = doc.meta;
   const sec = (s: number) => Math.round(s * fps);
@@ -187,6 +188,8 @@ export function buildBiimTimeline(
       })),
       footage: map,
       gameVolume: doc.meta.gameVolume * gameGain,
+      frame: doc.meta.biimFrame,
+      ...(frameImage && { frameImage }),
     },
   };
 }

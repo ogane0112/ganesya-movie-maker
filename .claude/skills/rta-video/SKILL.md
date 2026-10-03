@@ -14,8 +14,9 @@ description: gmm でゲーム実況・RTA 動画（biim システム：左上に
 
 - VOICEVOX が動いているか: `curl -s localhost:50021/version`（止まっていれば起動。書き出しには必須）
 - 録画ファイルの場所を利用者に聞く。台本と同じフォルダか、その下に置いてもらう
-- 立ち絵: ずんだもんは `characters/zundamon/`（なければ `gmm character import`）。
-  四国めたんは素材がなければ `builtin-metan`（組み込みキャラの色違い）で代用し、そのことを伝える
+- 立ち絵: ずんだもんは `characters/zundamon/`、四国めたんは `characters/metan/`（`layers/` がなければ坂本アヒル氏の PSD を `gmm character import` で分解する）。
+  素材が手に入らなければ `builtin-metan` など組み込みキャラの色違いで代用し、そのことを伝える
+- 画面は biim のおなじみの枠（`biimFrame: classic`、既定）。左下の丸に話している人の顔が出る。枠の画像を渡されたら `frameImage:`（1920×1080 透過 PNG）
 - わからなければ聞くこと：ゲーム名・レギュレーション（Any% など）・計測の開始と終了の基準（ゲームごとに違う）
 
 ### 2. 録画を下見する

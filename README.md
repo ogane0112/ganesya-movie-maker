@@ -128,17 +128,19 @@ AI が JSON を直接書いて `gmm build scenes.json` としてもよい。
 
 - `character: builtin` — 組み込みキャラ（SVG）。素材なしで試せる。表情: normal / smile / surprised / troubled / think
 - `character: zundamon` — `characters/zundamon/`（坂本アヒル氏の「ずんだもん立ち絵素材」）。表情: normal / smile / surprised / troubled / think / angry
+- `character: metan` — `characters/metan/`（坂本アヒル氏の「四国めたん立ち絵素材」）。表情は zundamon と同じ
 
-### ずんだもん立ち絵の準備
+### 立ち絵の準備（ずんだもん・四国めたん）
 
 素材の PSD はリポジトリに含めていない。手元の PSD をレイヤーごとの PNG に分解する：
 
 ```sh
 ./bin/gmm.mjs character import "ずんだもん立ち絵素材2.3.psd" characters/zundamon
+./bin/gmm.mjs character import "四国めたん立ち絵素材2.1.psd" characters/metan
 ```
 
-`characters/zundamon/layers/*.png` と `layers.json` ができる（Git 管理外）。
-どの表情でどのパーツを使うかは `characters/zundamon/character.json` に書いてある。
+`characters/<名前>/layers/*.png` と `layers.json` ができる（Git 管理外）。
+どの表情でどのパーツを使うかは `characters/<名前>/character.json` に書いてある。
 
 ### character.json
 
@@ -153,6 +155,7 @@ AI が JSON を直接書いて `gmm build scenes.json` としてもよい。
   "layersFile": "layers.json",
   "crop": { "x": 240, "y": 90, "width": 740, "height": 1060 },
   "height": 680,
+  "face": { "x": 490, "y": 410 },
   "base": ["尻尾的なアレ", "服装1/いつもの服", "服装1/左腕/基本", "服装1/右腕/基本", "顔色/ほっぺ", "枝豆/枝豆通常"],
   "eyes": ["目/目セット/普通白目", "目/目セット/黒目/普通目"],
   "blink": ["目/なごみ目"],
@@ -168,6 +171,7 @@ AI が JSON を直接書いて `gmm build scenes.json` としてもよい。
 - レイヤー名は `gmm character import` が出力する PSD 内のパス（`*` `!` を除いたもの）
 - PSDTool と同じく、`*` 付きレイヤーを表情で指定すると、同じグループの `base` のレイヤーは外れる（例: 腕を「考える」に差し替え）
 - `crop` は元画像のうち表示する範囲、`height` は画面上の高さ（px）
+- `face` は元画像での顔の中心。ゲーム実況の丸い枠で、顔をここに合わせて切り抜く
 - `layersFile` を省略すると、レイヤー名を PNG ファイル名として扱う（自作の PNG を並べる場合）
 
 ## BGM
@@ -185,8 +189,13 @@ AI が JSON を直接書いて `gmm build scenes.json` としてもよい。
 
 ## ゲーム実況（biim システム）
 
-フロントマターに `layout: biim` と書くと、ゲーム実況の台本として読む。画面は左上にゲーム（録画の縦横比のまま）、
-右にタイトル・カテゴリ・RTA タイマー・区間（スプリット）の一覧、下に話者の胸像と実況の字幕。
+フロントマターに `layout: biim` と書くと、ゲーム実況の台本として読む。画面は biim システムのおなじみの枠（`biimFrame: classic`、既定）：
+左上にゲーム（16:9）、右上に今の区間とタイマー、右にタイトル・カテゴリ・区間（スプリット）の一覧、
+左下の丸に話している人の顔、下の枠に話者名と実況の字幕。
+
+- `biimFrame: simple` — 枠なしの簡素な画面（ゲーム・情報欄・下に胸像と字幕）
+- `frameImage: frame.png` — 枠を画像で差し替える（1920×1080 の透過 PNG。台本からの相対パス）。
+  ゲーム・字幕・顔は組み込みの位置（`remotion/biim/BiimScene.tsx` の `CLASSIC`）に出るので、その位置に穴を空けた画像にする
 
 ```markdown
 ---
@@ -199,9 +208,9 @@ category: Any%
 speakers:                  # 話者: VOICEVOX の声（掛け合い）
   ずんだもん: zundamon
   めたん: metan
-characters:                # 話者: 立ち絵（めたんは素材がなければ組み込みキャラの色違い builtin-metan）
+characters:                # 話者: 立ち絵（素材がなければ builtin-metan など組み込みキャラの色違いで代用）
   ずんだもん: zundamon
-  めたん: builtin-metan
+  めたん: metan
 ---
 
 !cut 0:50-0:54             # ロードを切る
