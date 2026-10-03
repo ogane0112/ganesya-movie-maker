@@ -1,6 +1,7 @@
 // シーン定義JSON（scenes.json）とタイムラインJSON（timeline.json）の仕様。
 // 台本パーサの出力であり、AIが直接書いてもよい公開フォーマット。
 import { z } from "zod";
+import type { Theme } from "../remotion/theme";
 
 /** 「n番目のナレーション文が始まるときに出す」の n（1始まり）。省略時はシーン冒頭。 */
 const At = z.number().int().min(1);
@@ -55,7 +56,10 @@ export const Scene = z.object({
   showHeading: z.boolean().default(true),
   sentences: z.array(
     z.object({
+      /** 字幕・画面に出す表記 */
       text: z.string(),
+      /** 読み上げる文（表記と違うときだけ） */
+      speech: z.string().optional(),
       /** 立ち絵の表情。この文から切り替わり、次の指定まで続く */
       face: z.string().optional(),
     }),
@@ -65,10 +69,15 @@ export const Scene = z.object({
 
 export const Meta = z.object({
   title: z.string().default("untitled"),
+  /** 組み込みテーマ名（wakaba / dark）かテーマJSONのパス */
   theme: z.string().default("wakaba"),
   voice: z.string().default("zundamon"),
   /** 立ち絵。none / builtin / characters/<名前>/ の画像セット / ディレクトリのパス */
   character: z.string().default("none"),
+  /** 字幕。burn: 焼き込み＋SRT / srt: SRT だけ / none: なし */
+  subtitles: z.enum(["burn", "srt", "none"]).default("burn"),
+  /** 読みの辞書（表記 → よみ）。全文の読み上げに適用する */
+  readings: z.record(z.string(), z.string()).default({}),
   /** 読み上げ速度（VOICEVOX の speedScale） */
   speed: z.number().default(1.0),
   fps: z.number().int().default(30),
@@ -185,6 +194,7 @@ export type ResolvedCharacter = {
 
 export type Timeline = {
   meta: Meta;
+  theme: Theme;
   durationInFrames: number;
   scenes: ResolvedScene[];
   character?: ResolvedCharacter;

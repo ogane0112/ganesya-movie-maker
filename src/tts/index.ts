@@ -32,9 +32,11 @@ export async function synthesizeAll(doc: SceneDoc, outDir: string, opts: TtsOpti
   const sentences: SentenceAudio[] = [];
   let made = 0;
   for (const scene of doc.scenes) {
-    for (const [index, { text }] of scene.sentences.entries()) {
+    for (const [index, sentence] of scene.sentences.entries()) {
+      const { text } = sentence;
+      const speech = applyReadings(sentence.speech ?? text, doc.meta.readings);
       const key = createHash("sha1")
-        .update(JSON.stringify([provider, speaker, doc.meta.speed, text]))
+        .update(JSON.stringify([provider, speaker, doc.meta.speed, speech]))
         .digest("hex")
         .slice(0, 16);
       const file = `audio/${key}.wav`;
@@ -44,11 +46,11 @@ export async function synthesizeAll(doc: SceneDoc, outDir: string, opts: TtsOpti
         let wav: Buffer;
         let mouth: [number, number][];
         if (provider === "voicevox") {
-          const r = await voicevoxSynthesize(opts.voicevoxUrl, speaker, text, doc.meta.speed);
+          const r = await voicevoxSynthesize(opts.voicevoxUrl, speaker, speech, doc.meta.speed);
           wav = r.wav;
           mouth = mouthFromQuery(r.query, wavSeconds(wav));
         } else {
-          const seconds = estimateSeconds(text, doc.meta.speed);
+          const seconds = estimateSeconds(speech, doc.meta.speed);
           wav = silentWav(seconds);
           mouth = estimateMouth(seconds);
         }
@@ -70,6 +72,14 @@ export async function synthesizeAll(doc: SceneDoc, outDir: string, opts: TtsOpti
   const timing: AudioTiming = { provider, voice: doc.meta.voice, credit: vv && `VOICEVOX:${vv.name}`, sentences };
   await writeFile(join(outDir, "audio-timing.json"), JSON.stringify(timing, null, 2));
   return timing;
+}
+
+/** 読みの辞書を適用する。長い表記から順に置き換える（「S3」より「S3バケット」を優先） */
+export function applyReadings(text: string, readings: Record<string, string>): string {
+  const keys = Object.keys(readings).sort((a, b) => b.length - a.length);
+  if (!keys.length) return text;
+  const re = new RegExp(keys.map((k) => k.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|"), "g");
+  return text.replace(re, (m) => readings[m]);
 }
 
 /** 仮音声用の口パク：0.16秒ごとに開け閉めする */

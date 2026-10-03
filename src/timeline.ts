@@ -1,7 +1,7 @@
 // F3: 音声の長さからタイミングを決め、レンダリング用の timeline.json を作る。
 // 部品の出現・強調は「対応するナレーション文の開始フレーム」に合わせる。
 import { codeToTokens } from "shiki";
-import { getTheme } from "../remotion/theme.js";
+import type { Theme } from "../remotion/theme.js";
 import type {
   AudioTiming,
   Element,
@@ -15,9 +15,13 @@ import type {
 /** シーン冒頭の間・文と文の間・シーン末尾の余韻（秒） */
 export const PACING = { leadIn: 0.4, gap: 0.35, tail: 1.0 };
 
-export async function buildTimeline(doc: SceneDoc, audio: AudioTiming, character?: ResolvedCharacter): Promise<Timeline> {
+export async function buildTimeline(
+  doc: SceneDoc,
+  audio: AudioTiming,
+  theme: Theme,
+  character?: ResolvedCharacter,
+): Promise<Timeline> {
   const { fps } = doc.meta;
-  const theme = getTheme(doc.meta.theme);
   const sec = (s: number) => Math.round(s * fps);
 
   const scenes: ResolvedScene[] = [];
@@ -54,7 +58,7 @@ export async function buildTimeline(doc: SceneDoc, audio: AudioTiming, character
     });
     start += durationInFrames;
   }
-  return { meta: doc.meta, durationInFrames: start, scenes, character };
+  return { meta: doc.meta, theme, durationInFrames: start, scenes, character };
 }
 
 async function resolveElement(

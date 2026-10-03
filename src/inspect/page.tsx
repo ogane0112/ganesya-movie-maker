@@ -5,7 +5,7 @@ import { createRoot } from "react-dom/client";
 import { flushSync } from "react-dom";
 import type { Timeline } from "../schema";
 import { Video, type VideoProps } from "../../remotion/Video";
-import type { Measurement } from "./rules";
+import type { Measurement, SubtitleMeasurement } from "./rules";
 
 const root = createRoot(document.getElementById("root")!);
 
@@ -53,9 +53,24 @@ function measure(): Measurement {
   };
 }
 
+/** 焼き込み字幕の行数と、部品との重なりを測る */
+function measureSubtitle(): SubtitleMeasurement | null {
+  const box = document.querySelector<HTMLElement>("[data-gmm-subtitle]");
+  const text = document.querySelector<HTMLElement>("[data-gmm-subtitle-text]");
+  const canvas = document.querySelector<HTMLElement>("[data-gmm-canvas]");
+  if (!box || !text || !canvas) return null;
+  const origin = canvas.getBoundingClientRect();
+  const r = box.getBoundingClientRect();
+  return {
+    text: text.textContent ?? "",
+    lines: Math.round(text.getBoundingClientRect().height / parseFloat(getComputedStyle(text).lineHeight)),
+    rect: { x: r.left - origin.left, y: r.top - origin.top, width: r.width, height: r.height },
+  };
+}
+
 declare global {
   interface Window {
-    gmm: { show: typeof show; measure: typeof measure };
+    gmm: { show: typeof show; measure: typeof measure; measureSubtitle: typeof measureSubtitle };
   }
 }
-window.gmm = { show, measure };
+window.gmm = { show, measure, measureSubtitle };

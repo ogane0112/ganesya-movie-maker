@@ -108,3 +108,22 @@ describe("表情の指定", () => {
     expect(d.scenes[0].sentences).toEqual([{ text: "こんにちは。", face: "smile" }, { text: "普通の文。" }, { text: "どうしよう。", face: "think" }]);
   });
 });
+
+describe("読みの指定", () => {
+  it("{表記|よみ} は表示に表記、読み上げによみを使う。readings: は表になる", () => {
+    const d = parseScript(`---
+title: t
+readings:
+  S3: エススリー
+  "API Gateway": エーピーアイゲートウェイ
+subtitles: srt
+---
+## A
+
+{S3|エススリー}に保存します。普通の文。
+`);
+    expect(d.meta.readings).toEqual({ S3: "エススリー", "API Gateway": "エーピーアイゲートウェイ" });
+    expect(d.meta.subtitles).toBe("srt");
+    expect(d.scenes[0].sentences).toEqual([{ text: "S3に保存します。", speech: "エススリーに保存します。" }, { text: "普通の文。" }]);
+  });
+});

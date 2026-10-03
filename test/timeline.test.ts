@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { parseScript } from "../src/parse";
 import type { AudioTiming } from "../src/schema";
+import { THEMES } from "../remotion/theme";
 import { buildTimeline, PACING } from "../src/timeline";
 
 const doc = parseScript(`## A
@@ -34,7 +35,7 @@ const audio: AudioTiming = {
 
 describe("buildTimeline", () => {
   it("音声の長さと間からフレームを決め、部品を文の開始に合わせる", async () => {
-    const t = await buildTimeline(doc, audio);
+    const t = await buildTimeline(doc, audio, THEMES.wakaba);
     const fps = 30;
     const lead = PACING.leadIn * fps; // 12
     const gap = Math.round(PACING.gap * fps); // 11
@@ -62,6 +63,6 @@ describe("buildTimeline", () => {
   });
 
   it("音声が足りないとエラーにする", async () => {
-    await expect(buildTimeline(doc, { ...audio, sentences: audio.sentences.slice(1) })).rejects.toThrow("音声が揃っていません");
+    await expect(buildTimeline(doc, { ...audio, sentences: audio.sentences.slice(1) }, THEMES.wakaba)).rejects.toThrow("音声が揃っていません");
   });
 });

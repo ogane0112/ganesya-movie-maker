@@ -1,12 +1,14 @@
 import { Composition } from "remotion";
-import type { Timeline } from "../src/schema";
+import { Meta, type Timeline } from "../src/schema";
+import { THEMES } from "./theme";
 import { Video, type VideoProps } from "./Video";
 
 import { COMPOSITION_ID } from "./constants";
 
 // プレビュー時は --props で timeline を渡す。何も渡さないときの表示用。
 const placeholder: Timeline = {
-  meta: { title: "placeholder", theme: "wakaba", voice: "zundamon", character: "none", speed: 1, fps: 30, width: 1920, height: 1080 },
+  meta: Meta.parse({ title: "placeholder" }),
+  theme: THEMES.wakaba,
   durationInFrames: 90,
   scenes: [
     {

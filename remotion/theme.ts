@@ -1,21 +1,37 @@
-// テーマ（色・フォント・余白）。F13 でファイルから読めるようにする予定。今は組み込みのみ。
-export type Theme = {
-  name: string;
-  background: string;
-  surface: string;
-  text: string;
-  subtext: string;
-  accent: string;
-  accentSoft: string;
-  marker: string;
-  fontFamily: string;
-  codeFontFamily: string;
-  codeTheme: string;
+// テーマ（色・フォント・余白）。組み込みテーマか、それを extends で上書きする JSON ファイル（F13）。
+// Node 側で解決して timeline.theme に載せるので、Remotion 側は名前ではなく中身を受け取る。
+import { z } from "zod";
+
+export const Theme = z.object({
+  name: z.string(),
+  background: z.string(),
+  surface: z.string(),
+  text: z.string(),
+  subtext: z.string(),
+  accent: z.string(),
+  accentSoft: z.string(),
+  marker: z.string(),
+  fontFamily: z.string(),
+  codeFontFamily: z.string(),
+  /** Shiki のテーマ名 */
+  codeTheme: z.string(),
   /** 1080p 換算の基本文字サイズ（px） */
-  fontSize: number;
-  /** 画面端からの余白（px）。検査の「安全領域」もこれを使う */
-  padding: number;
-};
+  fontSize: z.number(),
+  /** 画面端からの余白（px） */
+  padding: z.number(),
+  /** 字幕 */
+  subtitle: z.object({
+    fontSize: z.number(),
+    color: z.string(),
+    /** 文字の縁取り */
+    stroke: z.string(),
+    /** 字幕帯の背景（不要なら transparent） */
+    background: z.string(),
+  }),
+  /** 追加のフォント。src はテーマファイルからの相対パス */
+  fonts: z.array(z.object({ family: z.string(), src: z.string(), weight: z.union([z.number(), z.string()]).default(400) })).default([]),
+});
+export type Theme = z.infer<typeof Theme>;
 
 const FONT = '"Noto Sans JP", "IPAGothic", sans-serif';
 const CODE_FONT = '"JetBrains Mono", "Noto Sans JP", monospace';
@@ -36,6 +52,8 @@ export const THEMES: Record<string, Theme> = {
     codeTheme: "github-dark",
     fontSize: 48,
     padding: 96,
+    subtitle: { fontSize: 44, color: "#ffffff", stroke: "#24502a", background: "rgba(31, 45, 31, 0.0)" },
+    fonts: [],
   },
   dark: {
     name: "dark",
@@ -51,11 +69,7 @@ export const THEMES: Record<string, Theme> = {
     codeTheme: "github-dark",
     fontSize: 48,
     padding: 96,
+    subtitle: { fontSize: 44, color: "#ffffff", stroke: "#000000", background: "rgba(0, 0, 0, 0.0)" },
+    fonts: [],
   },
 };
-
-export function getTheme(name: string): Theme {
-  const t = THEMES[name];
-  if (!t) throw new Error(`テーマ「${name}」はありません。使えるのは: ${Object.keys(THEMES).join(", ")}`);
-  return t;
-}

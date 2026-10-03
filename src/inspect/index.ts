@@ -9,7 +9,7 @@ import { fileURLToPath } from "node:url";
 import { chromium, type Page } from "playwright-core";
 import { findBrowser } from "../browser.js";
 import type { ResolvedScene, Timeline } from "../schema.js";
-import { checkLayout, checkScene, type Issue } from "./rules.js";
+import { checkLayout, checkScene, checkSubtitle, type Issue } from "./rules.js";
 
 const here = dirname(fileURLToPath(import.meta.url));
 
@@ -99,8 +99,16 @@ export async function runChecks(timeline: Timeline, outDir: string): Promise<Iss
     for (const scene of timeline.scenes) {
       issues.push(...checkScene(scene, timeline));
       await session.show(finalFrame(scene));
+      const label = `${scene.id}「${scene.heading}」`;
       const m = await session.page.evaluate(() => window.gmm.measure());
-      issues.push(...checkLayout(m, `${scene.id}「${scene.heading}」`));
+      issues.push(...checkLayout(m, label));
+      // 字幕は文ごとに変わるので、各文の表示中に測る（立ち絵は字幕の横に置くので重なりの対象から外す）
+      const contentEls = m.elements.filter((e) => e.kind !== "character");
+      for (const s of scene.sentences) {
+        await session.show(scene.start + s.from + 1);
+        const sub = await session.page.evaluate(() => window.gmm.measureSubtitle());
+        if (sub) issues.push(...checkSubtitle(sub, contentEls, scene.id, label));
+      }
     }
   } finally {
     await session.close();

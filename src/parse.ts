@@ -6,6 +6,7 @@
 //   :::部品名 引数 画面に出すもの（::: で閉じる）
 //   {n}            n番目のナレーション文が始まるときに出す
 //   {face:smile}   文頭に書くと、その文から立ち絵の表情が変わる
+//   {表記|よみ}    字幕には表記、読み上げにはよみを使う（フロントマターの readings: で一括指定もできる）
 import { Element, SceneDoc, type Scene } from "./schema.js";
 
 export class ScriptError extends Error {
@@ -22,12 +23,17 @@ export function parseScript(source: string): SceneDoc {
   let i = 0;
 
   // フロントマター
-  const meta: Record<string, string | number> = {};
+  // 値が空のキーの下に字下げした「キー: 値」を並べると、その組の表（readings など）になる
+  const meta: Record<string, string | number | Record<string, string>> = {};
   if (lines[0]?.trim() === "---") {
     i = 1;
+    let table: Record<string, string> | undefined;
     while (i < lines.length && lines[i].trim() !== "---") {
-      const m = lines[i].match(/^(\w+)\s*:\s*(.*)$/);
-      if (m) meta[m[1]] = coerce(m[2].trim());
+      const nested = table && lines[i].match(/^\s+(.+?)\s*:\s*(.+)$/);
+      const m = lines[i].match(/^(\w+)\s*:\s*(.*?)\s*(#.*)?$/);
+      if (nested) table![nested[1].replace(/^["'](.*)["']$/, "$1")] = String(coerce(nested[2].trim()));
+      else if (m && m[2] === "") meta[m[1]] = table = {};
+      else if (m) (meta[m[1]] = coerce(m[2])), (table = undefined);
       i++;
     }
     i++;
@@ -121,20 +127,24 @@ export function splitSentences(text: string): string[] {
   return out;
 }
 
+/** {表記|よみ}: 字幕には表記を出し、読み上げはよみを使う */
+const READING = /\{([^{}|]+)\|([^{}]+)\}/g;
+
 /** 文頭の {face:表情} を取り出す。{face:x} だけの行は次の文に付ける */
-function takeFaces(sentences: string[]): { text: string; face?: string }[] {
-  const out: { text: string; face?: string }[] = [];
+function takeFaces(sentences: string[]): { text: string; speech?: string; face?: string }[] {
+  const out: { text: string; speech?: string; face?: string }[] = [];
   let pending: string | undefined;
   for (const s of sentences) {
     const m = s.match(/^\{face:([\w-]+)\}\s*/);
-    const text = m ? s.slice(m[0].length) : s;
+    const raw = m ? s.slice(m[0].length) : s;
     const face = m?.[1] ?? pending;
-    if (!text) {
+    if (!raw) {
       pending = face;
       continue;
     }
     pending = undefined;
-    out.push(face ? { text, face } : { text });
+    const text = raw.replace(READING, "$1");
+    out.push({ text, ...(text !== raw && { speech: raw.replace(READING, "$2") }), ...(face && { face }) });
   }
   return out;
 }

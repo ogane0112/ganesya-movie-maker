@@ -2,9 +2,8 @@
 import { Img, interpolate, staticFile, useCurrentFrame } from "remotion";
 import type { ResolvedCharacter, Timeline } from "../src/schema";
 import { BuiltinCharacter } from "./parts/BuiltinCharacter";
+import { CHARACTER_MARGIN } from "./layout";
 
-/** 画面右端からの余白（px） */
-export const CHARACTER_MARGIN = 40;
 
 /** まばたきの間隔（30fps 換算のフレーム数）。順に繰り返す */
 const BLINK_GAPS = [96, 132, 78, 150, 108, 120];

@@ -1,4 +1,5 @@
 // F6: 自動検査のルール。ブラウザで測った値とタイムラインだけを見る純粋関数。
+import { SUBTITLE_MAX_LINES } from "../../remotion/layout";
 import type { ResolvedScene, Timeline } from "../schema";
 
 export type Rect = { x: number; y: number; width: number; height: number };
@@ -9,6 +10,8 @@ export type Measurement = {
   elements: { kind: string; rect: Rect }[];
   texts: { text: string; fontSize: number; rect: Rect; clipped: boolean }[];
 };
+
+export type SubtitleMeasurement = { text: string; lines: number; rect: Rect };
 
 export type Issue = {
   severity: "error" | "warn";
@@ -90,6 +93,37 @@ export function checkLayout(m: Measurement, sceneLabel: string): Issue[] {
     }
   }
   return issues;
+}
+
+/** 字幕は2行まで。部品（立ち絵を含む）と重なってはいけない */
+export function checkSubtitle(sub: SubtitleMeasurement, elements: Measurement["elements"], sceneId: string, label: string): Issue[] {
+  const issues: Issue[] = [];
+  const short = sub.text.length > 20 ? `${sub.text.slice(0, 20)}…` : sub.text;
+  if (sub.lines > SUBTITLE_MAX_LINES) {
+    issues.push({
+      severity: "warn",
+      sceneId,
+      rule: "subtitle-lines",
+      message: `${label}: 字幕が${sub.lines}行になります「${short}」`,
+      hint: "文を短く分けてください（字幕は2行まで）",
+    });
+  }
+  for (const el of elements) {
+    if (intersects(el.rect, sub.rect)) {
+      issues.push({
+        severity: "error",
+        sceneId,
+        rule: "overlap",
+        message: `${label}: ${el.kind} が字幕と重なっています「${short}」`,
+        hint: "部品の数や行数を減らすか、シーンを分けてください",
+      });
+    }
+  }
+  return issues;
+}
+
+function intersects(a: Rect, b: Rect): boolean {
+  return Math.min(a.x + a.width, b.x + b.width) - Math.max(a.x, b.x) > 1 && Math.min(a.y + a.height, b.y + b.height) - Math.max(a.y, b.y) > 1;
 }
 
 export function checkScene(scene: ResolvedScene, timeline: Timeline): Issue[] {
