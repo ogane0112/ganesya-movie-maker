@@ -5,13 +5,14 @@ video: sample-run.mp4          # examples/rta/make-sample-run.sh で作る仮の
 runStart: 0:06                 # STAGE 1-1 が始まった時刻
 runEnd: 2:20                   # STAGE CLEAR が出た時刻
 category: Any%
+biimFrame: overlay              # overlay（ゲーム全面に二人が乗る）/ stage（上にゲーム、下で二人）/ classic / simple
 se: none
-speakers:
-  ずんだもん: zundamon
+speakers:                      # 1人目は左、2人目は右に立つ
   めたん: metan
+  ずんだもん: zundamon
 characters:
-  ずんだもん: zundamon
   めたん: metan
+  ずんだもん: zundamon
 glossary:
   RTA: ゲームを始めてからクリアするまでの、実際の時間の速さを競う遊び方
   Any%: どんな方法でもいいので、最速でクリアするルール
@@ -32,7 +33,7 @@ readings:
 
 ## 1-1 @0:06
 @0:06
-ずんだもん: {face:normal}{term:RTA}RTAは、ゲームを始めてからクリアするまでの、実際の時間を競う遊び方なのだ。
+ずんだもん: {face:normal}{term:RTA}RTAは、クリアまでの実際の時間を競う遊び方なのだ。
 めたん: {term:Any%}ルールはAny%。どんな方法でもいいから、最速でクリアすればいいのよ。
 ずんだもん: タイマーは、1-1が始まったところから計っているのだ。
 @0:26

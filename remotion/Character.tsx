@@ -69,8 +69,9 @@ export const Character: React.FC<{ timeline: Timeline; character: ResolvedCharac
 /**
  * 立ち絵そのもの（置き場所は親が決める）。bust: 胸から上だけを出す（ゲーム実況の下の帯など）。
  * 胸から上の範囲は、レイヤーの立ち絵では表示範囲（crop）の上 45%、組み込みキャラでは上 70% とする。
+ * bust に数（0〜1）を渡すと、表示範囲の上からその割合だけを出す。
  */
-export const CharacterArt: React.FC<{ character: ResolvedCharacter; face: string; mouthOpen: boolean; blink: boolean; bust?: boolean }> = ({
+export const CharacterArt: React.FC<{ character: ResolvedCharacter; face: string; mouthOpen: boolean; blink: boolean; bust?: boolean | number }> = ({
   character,
   face,
   mouthOpen,
@@ -89,11 +90,11 @@ export const CharacterArt: React.FC<{ character: ResolvedCharacter; face: string
     if (!bust) return art;
     return (
       <div style={{ position: "absolute", inset: 0, overflow: "hidden" }}>
-        <div style={{ position: "absolute", left: 0, right: 0, top: 0, height: `${100 / 0.7}%` }}>{art}</div>
+        <div style={{ position: "absolute", left: 0, right: 0, top: 0, height: `${100 / bustRatio(character, bust)}%` }}>{art}</div>
       </div>
     );
   }
-  const c = bust ? { ...character, crop: { ...character.crop, height: character.crop.height * 0.45 } } : character;
+  const c = bust ? { ...character, crop: { ...character.crop, height: character.crop.height * bustRatio(character, bust) } } : character;
   return <CharacterLayers character={c} face={face} mouthOpen={mouthOpen} blink={blink} />;
 };
 
@@ -139,3 +140,15 @@ const CharacterLayers: React.FC<{
     </div>
   );
 };
+
+/** 胸像として出す、表示範囲の上からの割合 */
+export function bustRatio(character: ResolvedCharacter, bust: boolean | number | undefined): number {
+  if (typeof bust === "number") return bust;
+  return character.kind === "builtin" ? 0.7 : 0.45;
+}
+
+/** 胸像の縦横比（幅 / 高さ） */
+export function bustAspect(character: ResolvedCharacter, bust: boolean | number = true): number {
+  const r = bustRatio(character, bust);
+  return character.kind === "builtin" ? 340 / (500 * r) : character.crop.width / (character.crop.height * r);
+}

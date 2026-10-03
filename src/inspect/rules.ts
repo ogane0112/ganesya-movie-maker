@@ -42,6 +42,9 @@ export const LIMITS = {
   maxSentenceSec: 12,
 };
 
+/** 上に部品を重ねてよい背景の部品（data-gmm-el="backdrop"） */
+export const BACKDROP = "backdrop";
+
 export function checkLayout(m: Measurement, sceneLabel: string, opts: { safeMargin?: number } = {}): Issue[] {
   const margin = opts.safeMargin ?? LIMITS.safeMargin;
   const issues: Issue[] = [];
@@ -68,17 +71,19 @@ export function checkLayout(m: Measurement, sceneLabel: string, opts: { safeMarg
     }
   }
 
-  for (let i = 0; i < m.elements.length; i++) {
-    for (let j = i + 1; j < m.elements.length; j++) {
-      const a = m.elements[i].rect;
-      const b = m.elements[j].rect;
+  // 背景（全面のゲーム画面など、上に重ねる前提のもの）は重なりの検査から外す
+  const fg = m.elements.filter((e) => e.kind !== BACKDROP);
+  for (let i = 0; i < fg.length; i++) {
+    for (let j = i + 1; j < fg.length; j++) {
+      const a = fg[i].rect;
+      const b = fg[j].rect;
       const w = Math.min(a.x + a.width, b.x + b.width) - Math.max(a.x, b.x);
       const h = Math.min(a.y + a.height, b.y + b.height) - Math.max(a.y, b.y);
       if (w > 1 && h > 1) {
         push(
           "error",
           "overlap",
-          `${m.elements[i].kind} と ${m.elements[j].kind} が重なっています（${Math.round(w)}×${Math.round(h)}px）`,
+          `${fg[i].kind} と ${fg[j].kind} が重なっています（${Math.round(w)}×${Math.round(h)}px）`,
           "部品の数を減らすか、シーンを分けてください",
         );
       }
@@ -110,7 +115,7 @@ export function checkSubtitle(sub: SubtitleMeasurement, elements: Measurement["e
     });
   }
   for (const el of elements) {
-    if (intersects(el.rect, sub.rect)) {
+    if (el.kind !== BACKDROP && intersects(el.rect, sub.rect)) {
       issues.push({
         severity: "error",
         sceneId,

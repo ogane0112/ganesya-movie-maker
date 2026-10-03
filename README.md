@@ -172,6 +172,7 @@ AI が JSON を直接書いて `gmm build scenes.json` としてもよい。
 - PSDTool と同じく、`*` 付きレイヤーを表情で指定すると、同じグループの `base` のレイヤーは外れる（例: 腕を「考える」に差し替え）
 - `crop` は元画像のうち表示する範囲、`height` は画面上の高さ（px）
 - `face` は元画像での顔の中心。ゲーム実況の丸い枠で、顔をここに合わせて切り抜く
+- `facing` は顔の向き（left / right / front）、`color` は掛け合いでのその人の色
 - `layersFile` を省略すると、レイヤー名を PNG ファイル名として扱う（自作の PNG を並べる場合）
 
 ## BGM
@@ -189,13 +190,16 @@ AI が JSON を直接書いて `gmm build scenes.json` としてもよい。
 
 ## ゲーム実況（biim システム）
 
-フロントマターに `layout: biim` と書くと、ゲーム実況の台本として読む。画面は biim システムのおなじみの枠（`biimFrame: classic`、既定）：
-左上にゲーム（16:9）、右上に今の区間とタイマー、右にタイトル・カテゴリ・区間（スプリット）の一覧、
-左下の丸に話している人の顔、下の枠に話者名と実況の字幕。
+フロントマターに `layout: biim` と書くと、ゲーム実況の台本として読む。画面は `biimFrame:` で選ぶ：
 
-- `biimFrame: simple` — 枠なしの簡素な画面（ゲーム・情報欄・下に胸像と字幕）
-- `frameImage: frame.png` — 枠を画像で差し替える（1920×1080 の透過 PNG。台本からの相対パス）。
-  ゲーム・字幕・顔は組み込みの位置（`remotion/biim/BiimScene.tsx` の `CLASSIC`）に出るので、その位置に穴を空けた画像にする
+- `overlay`（既定）— ゲームを全面に出し、左下に1人目・右下に2人目の話者が向かい合って乗る。字幕は二人の間、タイマーは右上
+- `stage` — 上にゲーム、下の段で二人が向かい合う。左の柱に題名、右の柱にタイマーと区間
+- `classic` — biim システムのおなじみの枠（左上にゲーム、右に区間とタイマー、左下の丸に話している人の顔）。
+  `frameImage: frame.png`（1920×1080 の透過 PNG）で枠を画像に差し替えられる
+- `simple` — 箱を並べただけの画面
+
+話者は `speakers:` に書いた順に左・右に立つ。立ち絵の `character.json` の `facing`（顔の向き）を見て、内側を向くよう左右反転する。
+名札と字幕の枠は `character.json` の `color` の色になる。
 
 ```markdown
 ---
@@ -205,12 +209,12 @@ video: sample-run.mp4      # 録画
 runStart: 0:06             # 録画内で計測を始めた時刻
 runEnd: 2:20               # 終えた時刻
 category: Any%
-speakers:                  # 話者: VOICEVOX の声（掛け合い）
-  ずんだもん: zundamon
+speakers:                  # 話者: VOICEVOX の声（書いた順に左・右に立つ）
   めたん: metan
+  ずんだもん: zundamon
 characters:                # 話者: 立ち絵（素材がなければ builtin-metan など組み込みキャラの色違いで代用）
-  ずんだもん: zundamon
   めたん: metan
+  ずんだもん: zundamon
 ---
 
 !cut 0:50-0:54             # ロードを切る

@@ -39,6 +39,10 @@ export const CharacterFile = PartSet.extend({
   height: z.number().default(640),
   /** 顔の中心（元画像の px）。ゲーム実況の円の中に顔を合わせるのに使う。省略時は表示範囲の上のほうの中央 */
   face: z.object({ x: z.number(), y: z.number() }).optional(),
+  /** 立ち絵の向き（顔がどちらを向いているか）。掛け合いで向かい合わせるとき、逆向きなら左右反転する */
+  facing: z.enum(["left", "right", "front"]).optional(),
+  /** 掛け合いで使うその人の色（名札・字幕の枠） */
+  color: z.string().optional(),
   default: z.string().default("normal"),
   /** すべての表情に共通のレイヤー（体・服など） */
   base: Parts.default([]),
@@ -63,7 +67,7 @@ export async function loadCast(doc: SceneDoc, scriptPath: string, outDir: string
       throw new Error(`話者「${name}」の立ち絵: ${e.message}`);
     });
     const palette = BUILTIN_PALETTES[spec as keyof typeof BUILTIN_PALETTES];
-    cast.push({ name, color: palette?.hairDark ?? CAST_COLORS[i % CAST_COLORS.length], character });
+    cast.push({ name, color: (character?.kind === "layers" ? character.color : undefined) ?? palette?.hairDark ?? CAST_COLORS[i % CAST_COLORS.length], character });
   }
   return cast;
 }
@@ -192,6 +196,8 @@ async function resolveLayers(def: CharacterFile, dir: string, outDir: string): P
     layers,
     expressions,
     ...(def.face && { face: def.face }),
+    ...(def.facing && { facing: def.facing }),
+    ...(def.color && { color: def.color }),
   };
 }
 

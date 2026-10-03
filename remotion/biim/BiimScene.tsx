@@ -1,7 +1,7 @@
 // F18: biim システムの画面。左上にゲーム、右に情報欄（タイトル・タイマー・区間）、下に話者と実況字幕。
 import { Img, OffthreadVideo, Sequence, staticFile, useCurrentFrame } from "remotion";
 import type { CastMember, ResolvedScene, RunInfo, Timeline } from "../../src/schema";
-import { CharacterArt, isBlinking } from "../Character";
+import { bustAspect, CharacterArt, isBlinking } from "../Character";
 import type { Theme } from "../theme";
 import { currentSplit, formatRunTime, runTimeAt, videoTimeAt } from "./run";
 
@@ -23,8 +23,16 @@ export function biimLayout(t: Timeline) {
   return { game, panel, band };
 }
 
-export const BiimScene: React.FC<{ scene: ResolvedScene; timeline: Timeline; withAudio: boolean }> = (props) =>
-  props.timeline.run!.frame === "classic" ? <ClassicScene {...props} /> : <SimpleScene {...props} />;
+export const BiimScene: React.FC<{ scene: ResolvedScene; timeline: Timeline; withAudio: boolean }> = (props) => {
+  switch (props.timeline.run!.frame) {
+    case "classic":
+      return <ClassicScene {...props} />;
+    case "simple":
+      return <SimpleScene {...props} />;
+    default:
+      return <DuoScene {...props} />;
+  }
+};
 
 /** ゲーム画面（録画を区間ごとに流す。倍速中は右上に倍率を出す） */
 const Footage: React.FC<{ scene: ResolvedScene; timeline: Timeline; withAudio: boolean; frame: number }> = ({ scene, timeline, withAudio, frame }) => {
@@ -183,7 +191,7 @@ const Bust: React.FC<{ member: CastMember; index: number; scene: ResolvedScene; 
 }) => {
   const ch = member.character!;
   const { face, mouthOpen } = speakerState(member, scene, timeline, frame);
-  const aspect = ch.kind === "builtin" ? 340 / (500 * 0.7) : ch.crop.width / (ch.crop.height * 0.45);
+  const aspect = bustAspect(ch);
   const h = BIIM.bustHeight;
   return (
     <div
@@ -331,7 +339,7 @@ const ClassicScene: React.FC<{ scene: ResolvedScene; timeline: Timeline; withAud
 const CircleFace: React.FC<{ member: CastMember; scene: ResolvedScene; timeline: Timeline; frame: number; index: number }> = ({ member, scene, timeline, frame, index }) => {
   const ch = member.character!;
   const { face, mouthOpen } = speakerState(member, scene, timeline, frame);
-  const aspect = ch.kind === "builtin" ? 340 / (500 * 0.7) : ch.crop.width / (ch.crop.height * 0.45);
+  const aspect = bustAspect(ch);
   // 円は画面の左下にはみ出しているので、画面に見えている部分の真ん中に顔が来るように置く
   const { cx, cy, r } = CLASSIC.circle;
   const visible = { x: (0 + cx + r * 0.75) / 2, y: (cy - r + 1080) / 2 };
@@ -348,6 +356,240 @@ const CircleFace: React.FC<{ member: CastMember; scene: ResolvedScene; timeline:
   return (
     <div style={{ position: "absolute", left: local.x - f.x * w, top: local.y - f.y * h, width: w, height: h }}>
       <CharacterArt character={ch} face={face} mouthOpen={mouthOpen} blink={isBlinking(frame + index * 47, timeline.meta.fps)} bust />
+    </div>
+  );
+};
+
+// ---- 掛け合いの画面（biimFrame: overlay / stage） ----
+// 左に1人目、右に2人目の話者を、向かい合わせて置く。overlay はゲームを全面に出して話者を上に重ね、
+// stage は上にゲーム、下の段で話者が向かい合う。字幕は二人の間、タイマーは右上。
+export const DUO = {
+  /** 話者の見せ方：表示範囲の上からの割合と、画面上の高さ */
+  figure: { ratio: 0.62, height: { overlay: 520, stage: 440 } },
+  stage: { game: { x: 320, y: 16, width: 1280, height: 720 } },
+  /** 字幕の箱（二人の間） */
+  subtitle: { overlay: { x: 520, width: 880, bottom: 28 }, stage: { x: 470, width: 980, bottom: 24 } },
+  timer: { width: 440, margin: 24 },
+};
+
+const DuoScene: React.FC<{ scene: ResolvedScene; timeline: Timeline; withAudio: boolean }> = ({ scene, timeline, withAudio }) => {
+  const frame = useCurrentFrame();
+  const run = timeline.run!;
+  const mode = run.frame === "stage" ? "stage" : "overlay";
+  const { width: W, height: H } = timeline.meta;
+  const { showing, speaking } = currentLine(scene, frame);
+  const cast = timeline.cast ?? [];
+  const member = cast.find((c) => c.name === showing?.speaker);
+  const sub = timeline.theme.subtitle;
+  const sb = DUO.subtitle[mode];
+  const game = mode === "stage" ? DUO.stage.game : { x: 0, y: 0, width: W, height: H };
+  return (
+    <div data-gmm-scene={scene.id} style={{ position: "absolute", inset: 0, background: mode === "stage" ? C.bg : "#000", color: C.text }}>
+      {/* overlay ではゲームは背景（話者や字幕を上に重ねる前提なので、重なりの検査から外す） */}
+      <div data-gmm-el={mode === "overlay" ? "backdrop" : "game"} style={{ position: "absolute", ...pos(game), background: "#000", overflow: "hidden", borderRadius: mode === "stage" ? 8 : 0 }}>
+        <Footage scene={scene} timeline={timeline} withAudio={withAudio} frame={frame} />
+      </div>
+
+      {mode === "stage" ? <StagePanels scene={scene} timeline={timeline} frame={frame} /> : <TimerCard scene={scene} timeline={timeline} frame={frame} />}
+
+      {/* 話者：1人目は左で右を向き、2人目は右で左を向く */}
+      {cast.slice(0, 2).map((m, i) =>
+        m.character ? (
+          <Figure key={m.name} member={m} side={i === 0 ? "left" : "right"} mode={mode} scene={scene} timeline={timeline} frame={frame} speaking={speaking === m.name} index={i} />
+        ) : null,
+      )}
+
+      {/* 字幕（二人の間） */}
+      <div
+        data-gmm-subtitle
+        style={{
+          position: "absolute",
+          left: sb.x,
+          width: sb.width,
+          bottom: sb.bottom,
+          // stage はゲームの下の段を埋める
+          minHeight: mode === "stage" ? H - (game.y + game.height) - 24 - sb.bottom : Math.round(sub.fontSize * 1.35) * 2 + 36,
+          boxSizing: "border-box",
+          padding: "14px 28px 16px",
+          borderRadius: 16,
+          background: showing ? "rgba(12, 16, 20, 0.78)" : "transparent",
+          border: showing && member ? `3px solid ${member.color}` : "3px solid transparent",
+          display: "flex",
+          flexDirection: "column",
+          justifyContent: "center",
+        }}
+      >
+        {showing && member && (
+          <div
+            data-gmm-text
+            style={{
+              position: "absolute",
+              top: -22,
+              [cast.indexOf(member) === 1 ? "right" : "left"]: 24,
+              fontSize: 28,
+              fontWeight: 700,
+              color: "#fff",
+              background: member.color,
+              padding: "0 16px",
+              borderRadius: 8,
+            }}
+          >
+            {member.name}
+          </div>
+        )}
+        <div data-gmm-subtitle-text style={{ fontSize: sub.fontSize, lineHeight: `${Math.round(sub.fontSize * 1.35)}px`, fontWeight: 700, textAlign: "center" }}>
+          {showing?.text ?? ""}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+/** 向かい合う話者。話している人は少し大きく明るく、話していない人は少し沈める */
+const Figure: React.FC<{
+  member: CastMember;
+  side: "left" | "right";
+  mode: "overlay" | "stage";
+  scene: ResolvedScene;
+  timeline: Timeline;
+  frame: number;
+  speaking: boolean;
+  index: number;
+}> = ({ member, side, mode, scene, timeline, frame, speaking, index }) => {
+  const ch = member.character!;
+  const { face, mouthOpen } = speakerState(member, scene, timeline, frame);
+  const ratio = DUO.figure.ratio;
+  const h = DUO.figure.height[mode];
+  const w = Math.round(h * bustAspect(ch, ratio));
+  // 顔が画面の内側を向くよう、逆向きの絵は左右反転する
+  const facing = ch.kind === "layers" ? ch.facing : undefined;
+  const flip = (side === "left" && facing === "left") || (side === "right" && facing === "right");
+  // 話している間だけ、ゆっくり上下に揺れる
+  const bob = speaking ? Math.sin((frame / timeline.meta.fps) * Math.PI * 2 * 0.8) * 4 : 0;
+  return (
+    <div
+      data-gmm-el="character"
+      style={{
+        position: "absolute",
+        bottom: 0,
+        [side]: -Math.round(w * 0.08),
+        width: w,
+        height: h,
+        transform: `translateY(${bob}px) scale(${speaking ? 1 : 0.96}) scaleX(${flip ? -1 : 1})`,
+        transformOrigin: "bottom center",
+        filter: speaking ? "none" : "brightness(0.82)",
+      }}
+    >
+      <CharacterArt character={ch} face={face} mouthOpen={mouthOpen} blink={isBlinking(frame + index * 47, timeline.meta.fps)} bust={ratio} />
+    </div>
+  );
+};
+
+/** overlay の右上：題名・いまの区間・タイマー・終えた区間のタイム */
+const TimerCard: React.FC<{ scene: ResolvedScene; timeline: Timeline; frame: number }> = ({ scene, timeline, frame }) => {
+  const run = timeline.run!;
+  const { fps, width: W } = timeline.meta;
+  const runTime = runTimeAt((scene.globalStart ?? scene.start) + frame, run, fps);
+  const cur = currentSplit(runTime, run);
+  const font = timeline.theme.codeFontFamily;
+  const { width, margin } = DUO.timer;
+  const done = run.splits.slice(0, Math.min(cur, run.splits.length)).slice(-3);
+  return (
+    <div
+      data-gmm-el="panel"
+      style={{
+        position: "absolute",
+        left: W - width - margin,
+        top: margin,
+        width,
+        boxSizing: "border-box",
+        padding: "14px 22px 16px",
+        borderRadius: 14,
+        background: "rgba(12, 16, 20, 0.72)",
+        display: "flex",
+        flexDirection: "column",
+        gap: 4,
+      }}
+    >
+      <div data-gmm-text style={{ fontSize: 28, color: C.sub, lineHeight: 1.3 }}>
+        {timeline.meta.title}
+      </div>
+      <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 12 }}>
+        <span data-gmm-text style={{ fontSize: 28, fontWeight: 700 }}>
+          {cur < run.splits.length ? run.splits[cur].name : "FINISH"}
+        </span>
+        <span data-gmm-text style={{ fontFamily: font, fontSize: 54, fontWeight: 700, color: cur >= run.splits.length ? C.done : C.text, fontVariantNumeric: "tabular-nums" }}>
+          {formatRunTime(runTime)}
+        </span>
+      </div>
+      {done.map((s) => (
+        <div key={s.name} style={{ display: "flex", justifyContent: "space-between", fontSize: 28, color: C.sub }}>
+          <span data-gmm-text>{s.name}</span>
+          <span style={{ fontFamily: font, color: C.done }}>{formatRunTime(s.endRunTime)}</span>
+        </div>
+      ))}
+    </div>
+  );
+};
+
+/** stage の左右の柱：左に題名・カテゴリ・区間、右にタイマー */
+const StagePanels: React.FC<{ scene: ResolvedScene; timeline: Timeline; frame: number }> = ({ scene, timeline, frame }) => {
+  const run = timeline.run!;
+  const { fps, width: W } = timeline.meta;
+  const runTime = runTimeAt((scene.globalStart ?? scene.start) + frame, run, fps);
+  const cur = currentSplit(runTime, run);
+  const font = timeline.theme.codeFontFamily;
+  const g = DUO.stage.game;
+  const colW = g.x - 32;
+  return (
+    <>
+      <div data-gmm-el="panel" style={{ position: "absolute", left: 16, top: g.y, width: colW, display: "flex", flexDirection: "column", gap: 10 }}>
+        <div data-gmm-text style={{ fontSize: 28, fontWeight: 700, lineHeight: 1.35 }}>{timeline.meta.title}</div>
+        {run.category && (
+          <div data-gmm-text style={{ fontSize: 28, color: C.sub }}>
+            {run.category}
+          </div>
+        )}
+      </div>
+      <div data-gmm-el="panel" style={{ position: "absolute", left: W - 16 - colW, top: g.y, width: colW, display: "flex", flexDirection: "column", gap: 10 }}>
+        <div data-gmm-text style={{ fontSize: 28, color: C.sub }}>
+          {cur < run.splits.length ? run.splits[cur].name : "FINISH"}
+        </div>
+        <div data-gmm-text style={{ fontFamily: font, fontSize: 48, fontWeight: 700, color: cur >= run.splits.length ? C.done : C.text, fontVariantNumeric: "tabular-nums" }}>
+          {formatRunTime(runTime)}
+        </div>
+        <SplitsCompact run={run} cur={cur} font={font} accent={timeline.theme.accent} />
+      </div>
+    </>
+  );
+};
+
+const SplitsCompact: React.FC<{ run: RunInfo; cur: number; font: string; accent: string }> = ({ run, cur, font, accent }) => {
+  const max = 7;
+  const from = Math.max(0, Math.min(cur - 2, run.splits.length - max));
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 4, marginTop: 6 }}>
+      {run.splits.slice(from, from + max).map((s, k) => {
+        const i = from + k;
+        const state = i < cur ? "done" : i === cur ? "now" : "next";
+        return (
+          <div
+            key={i}
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              padding: "2px 8px",
+              borderRadius: 6,
+              fontSize: 28,
+              background: state === "now" ? accent : "transparent",
+              color: state === "next" ? C.sub : C.text,
+            }}
+          >
+            <span data-gmm-text>{s.name}</span>
+            <span style={{ fontFamily: font, color: state === "done" ? C.done : "inherit" }}>{state === "done" ? formatRunTime(s.endRunTime) : "-"}</span>
+          </div>
+        );
+      })}
     </div>
   );
 };

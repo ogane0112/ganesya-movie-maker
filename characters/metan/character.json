@@ -5,6 +5,8 @@
   "crop": { "x": 100, "y": 20, "width": 880, "height": 1150 },
   "height": 680,
   "face": { "x": 520, "y": 300 },
+  "facing": "left",
+  "color": "#c2508e",
   "default": "normal",
   "base": [
     "ツインドリル右",
