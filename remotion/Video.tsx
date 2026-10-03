@@ -9,6 +9,7 @@ import type { Theme } from "./theme";
 import { appearStyle, useAppear } from "./anim";
 import { Character } from "./Character";
 import { computeLayout, type Layout } from "./layout";
+import { Sound } from "./Sound";
 import { Subtitle } from "./Subtitle";
 import { Bullets } from "./parts/Bullets";
 import { Code } from "./parts/Code";
@@ -63,6 +64,7 @@ export const Video: React.FC<VideoProps> = ({ timeline, withAudio = true }) => {
         </Sequence>
       ))}
       {ch && <Character timeline={timeline} character={ch} />}
+      {withAudio && <Sound timeline={timeline} />}
       {layout.subtitle &&
         timeline.scenes.map((scene) => (
           <Sequence key={scene.id} from={scene.start} durationInFrames={scene.durationInFrames} layout="none">

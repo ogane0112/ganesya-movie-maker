@@ -1,0 +1,45 @@
+// F9: BGM（ナレーション中は自動で音量を下げる）と場面転換の効果音
+import { Audio, Sequence, interpolate, staticFile } from "remotion";
+import type { Timeline } from "../src/schema";
+
+/** ナレーションの前後この長さで音量をなめらかに上げ下げする（フレーム） */
+const DUCK_RAMP = 8;
+
+/** 動画全体での「話している区間」 */
+export function speechSpans(t: Timeline): [number, number][] {
+  return t.scenes.flatMap((sc) => sc.sentences.map((s): [number, number] => [sc.start + s.from, sc.start + s.from + s.durationInFrames]));
+}
+
+/** frame での BGM の音量。ナレーション中は volume * duck、動画の最初と最後はフェードする */
+export function bgmVolumeAt(frame: number, t: Timeline, spans: [number, number][]): number {
+  const bgm = t.audio.bgm;
+  if (!bgm) return 0;
+  // 話している度合い（0〜1）
+  let k = 0;
+  for (const [a, b] of spans) {
+    if (frame < a - DUCK_RAMP || frame > b + DUCK_RAMP) continue;
+    k = Math.max(k, frame < a ? (frame - (a - DUCK_RAMP)) / DUCK_RAMP : frame > b ? (b + DUCK_RAMP - frame) / DUCK_RAMP : 1);
+  }
+  const fps = t.meta.fps;
+  const fade = interpolate(frame, [0, fps, t.durationInFrames - 2 * fps, t.durationInFrames], [0, 1, 1, 0], {
+    extrapolateLeft: "clamp",
+    extrapolateRight: "clamp",
+  });
+  return bgm.volume * (1 - (1 - bgm.duck) * k) * fade;
+}
+
+export const Sound: React.FC<{ timeline: Timeline }> = ({ timeline }) => {
+  const { bgm, se } = timeline.audio;
+  const spans = speechSpans(timeline);
+  return (
+    <>
+      {bgm && <Audio src={staticFile(bgm.src)} loop volume={(f) => bgmVolumeAt(f, timeline, spans)} />}
+      {se &&
+        timeline.scenes.slice(1).map((scene) => (
+          <Sequence key={scene.id} from={scene.start} layout="none">
+            <Audio src={staticFile(se.src)} volume={se.volume} />
+          </Sequence>
+        ))}
+    </>
+  );
+};

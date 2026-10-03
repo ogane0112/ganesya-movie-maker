@@ -107,6 +107,14 @@ export const Meta = z.object({
   subtitles: z.enum(["burn", "srt", "none"]).default("burn"),
   /** 読みの辞書（表記 → よみ）。全文の読み上げに適用する */
   readings: z.record(z.string(), z.string()).default({}),
+  /** BGM（台本からの相対パス）。ナレーション中は自動で音量を下げる */
+  bgm: z.string().optional(),
+  /** BGM の音量（ナレーションがないとき, 0〜1） */
+  bgmVolume: z.number().min(0).max(1).default(0.2),
+  /** BGM のクレジット表記（credits.txt に書く） */
+  bgmCredit: z.string().optional(),
+  /** 場面転換の効果音。default（組み込み）/ none / 音声ファイルのパス */
+  se: z.string().default("default"),
   /** 読み上げ速度（VOICEVOX の speedScale） */
   speed: z.number().default(1.0),
   fps: z.number().int().default(30),
@@ -234,9 +242,16 @@ export type ResolvedCharacter = {
     }
 );
 
+export type TimelineAudio = {
+  /** volume: ナレーションがないときの音量 / duck: ナレーション中にかける倍率 */
+  bgm?: { src: string; volume: number; duck: number };
+  se?: { src: string; volume: number };
+};
+
 export type Timeline = {
   meta: Meta;
   theme: Theme;
+  audio: TimelineAudio;
   durationInFrames: number;
   scenes: ResolvedScene[];
   character?: ResolvedCharacter;

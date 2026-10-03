@@ -11,6 +11,7 @@ import type {
   ResolvedScene,
   SceneDoc,
   Timeline,
+  TimelineAudio,
 } from "./schema.js";
 
 /** シーン冒頭の間・文と文の間・シーン末尾の余韻（秒） */
@@ -21,6 +22,7 @@ export async function buildTimeline(
   audio: AudioTiming,
   theme: Theme,
   character?: ResolvedCharacter,
+  audioAssets: TimelineAudio = {},
 ): Promise<Timeline> {
   const { fps } = doc.meta;
   const sec = (s: number) => Math.round(s * fps);
@@ -59,7 +61,7 @@ export async function buildTimeline(
     });
     start += durationInFrames;
   }
-  return { meta: doc.meta, theme, durationInFrames: start, scenes, character };
+  return { meta: doc.meta, theme, audio: audioAssets, durationInFrames: start, scenes, character };
 }
 
 async function resolveElement(

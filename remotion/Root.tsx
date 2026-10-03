@@ -9,6 +9,7 @@ import { COMPOSITION_ID } from "./constants";
 const placeholder: Timeline = {
   meta: Meta.parse({ title: "placeholder" }),
   theme: THEMES.wakaba,
+  audio: {},
   durationInFrames: 90,
   scenes: [
     {
