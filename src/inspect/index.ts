@@ -9,7 +9,7 @@ import { fileURLToPath } from "node:url";
 import { chromium, type Page } from "playwright-core";
 import { findBrowser } from "../browser.js";
 import type { ResolvedScene, Timeline } from "../schema.js";
-import { checkLayout, checkScene, checkSubtitle, type Issue } from "./rules.js";
+import { checkFaces, checkLayout, checkScene, checkSubtitle, type Issue } from "./rules.js";
 
 const here = dirname(fileURLToPath(import.meta.url));
 
@@ -99,7 +99,7 @@ export async function openInspector(timeline: Timeline, outDir: string): Promise
 const finalFrame = (s: ResolvedScene) => s.start + s.durationInFrames - 1;
 
 export async function runChecks(timeline: Timeline, outDir: string): Promise<Issue[]> {
-  const issues: Issue[] = [];
+  const issues: Issue[] = checkFaces(timeline);
   const session = await openInspector(timeline, outDir);
   try {
     for (const scene of timeline.scenes) {
@@ -176,6 +176,7 @@ async function writeOverview({ page, baseUrl }: InspectSession, shots: FrameShot
   await page.setContent(
     `<style>body{margin:0;padding:16px;background:#333;font:20px sans-serif;color:#fff;display:grid;grid-template-columns:repeat(${cols},640px);gap:16px}figure{margin:0}img{width:640px;height:360px;display:block}figcaption{padding:6px 0}</style>${cells}`,
   );
-  await page.evaluate(() => Promise.all([...document.images].map((i) => i.decode())));
+  // 画像がすべて読み込まれるまで待つ（decode() は大量の画像で失敗することがあるので load を待つ）
+  await page.waitForFunction(() => [...document.images].every((i) => i.complete && i.naturalWidth > 0), null, { timeout: 30000 });
   await page.screenshot({ path: join(outDir, "frames/overview.png"), fullPage: true });
 }

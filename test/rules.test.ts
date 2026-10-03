@@ -65,3 +65,19 @@ describe("checkScene", () => {
     expect(ruleNames(scene({ elements: [{ type: "text", text: "あ".repeat(200), html: "", variant: "plain", from: 0 }] }))).toEqual(["density"]);
   });
 });
+
+describe("checkFaces", () => {
+  it("既定以外の表情が5文以上続くと警告する（シーンをまたいでも数える）", async () => {
+    const { checkFaces } = await import("../src/inspect/rules");
+    const sent = (face?: string) => ({ text: "", from: 0, durationInFrames: 1, mouth: [], face });
+    const t = {
+      character: { defaultFace: "normal" },
+      scenes: [
+        { id: "s01", heading: "a", sentences: [sent("normal"), sent("surprised"), sent("surprised")] },
+        { id: "s02", heading: "b", sentences: [sent("surprised"), sent("surprised"), sent("surprised"), sent("normal")] },
+      ],
+    } as unknown as Timeline;
+    expect(checkFaces(t).map((i) => i.message)).toEqual(["s01「a」から: 表情「surprised」が5文続いています"]);
+    expect(checkFaces({ ...t, character: undefined } as Timeline)).toEqual([]);
+  });
+});

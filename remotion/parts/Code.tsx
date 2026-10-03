@@ -48,6 +48,8 @@ export const Code: React.FC<Props> = ({ lines, background, lang, from, highlight
               fontSize,
               lineHeight: 1.6,
               whiteSpace: "pre",
+              // 合字（=> → ⇒ など）を使わず、書いたとおりに見せる
+              fontVariantLigatures: "none",
               padding: "0 48px",
               opacity: dim,
               background: lit ? `rgba(255,255,255,${0.12 * fade})` : "transparent",

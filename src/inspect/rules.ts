@@ -29,6 +29,8 @@ export const LIMITS = {
   maxBullets: 6,
   maxCodeLines: 14,
   maxDiagramNodes: 5,
+  /** 既定以外の表情が続いてよい文の数 */
+  maxFaceSentences: 4,
   /** 1画面に出す文字数の上限（見出しを除く） */
   maxChars: 160,
   /** 部品が画面に出ている時間の下限（秒） */
@@ -194,6 +196,37 @@ export function checkScene(scene: ResolvedScene, timeline: Timeline): Issue[] {
   if (scene.elements.length === 0) {
     push("warn", "empty", "見出し以外に画面に出すものがありません", ":::bullets などで要点を出してください");
   }
+  return issues;
+}
+
+/** 既定以外の表情（驚き・困りなど）が長く続きすぎていないか。表情は次の指定まで続くので、戻し忘れを見つける */
+export function checkFaces(t: Timeline): Issue[] {
+  const ch = t.character;
+  if (!ch) return [];
+  const issues: Issue[] = [];
+  let run: { face: string; count: number; sceneId: string; label: string } | undefined;
+  const flush = () => {
+    if (run && run.face !== ch.defaultFace && run.count > LIMITS.maxFaceSentences) {
+      issues.push({
+        severity: "warn",
+        sceneId: run.sceneId,
+        rule: "face-long",
+        message: `${run.label}: 表情「${run.face}」が${run.count}文続いています`,
+        hint: `表情は次の指定まで続きます。話の区切りで {face:${ch.defaultFace}} に戻してください`,
+      });
+    }
+  };
+  for (const scene of t.scenes) {
+    for (const s of scene.sentences) {
+      const face = s.face ?? ch.defaultFace;
+      if (run?.face === face) run.count++;
+      else {
+        flush();
+        run = { face, count: 1, sceneId: scene.id, label: `${scene.id}「${scene.heading}」から` };
+      }
+    }
+  }
+  flush();
   return issues;
 }
 
