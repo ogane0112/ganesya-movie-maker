@@ -7,3 +7,4 @@
 - 部品のルート要素には `data-gmm-el`、文字には `data-gmm-text` を付ける（検査が測る対象）
 - 乱数・現在時刻を使わない（同じ台本なら同じ動画になること）
 - 解説動画を作る・直すときはスキル `explainer-video` に従う。手順やルールを変えたら `.claude/skills/explainer-video/` も更新する
+- ゲーム実況（layout: biim）を作る・直すときはスキル `rta-video` に従う

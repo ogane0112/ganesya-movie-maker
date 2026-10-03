@@ -1,6 +1,6 @@
 # ganesya-movie-maker (`gmm`)
 
-台本（Markdown）を書けば、解説動画（16:9・日本語ナレーション付き）を作るCLI。
+台本（Markdown）を書けば、解説動画（16:9・日本語ナレーション付き）や、ゲーム実況・RTA 動画（biim システム）を作るCLI。
 要件は [docs/requirements.md](docs/requirements.md)。
 
 LLM が苦手な2点をツール側で肩代わりする：
@@ -37,6 +37,7 @@ npm install
 | `gmm parse <台本>` | `scenes.json` を書き出すだけ |
 | `gmm bgm list [--tag 落ち着き]` | BGM カタログ（`bgm/*.json`）を雰囲気・合う場面つきで一覧する |
 | `gmm bgm fetch maou:acoustic50` | カタログの曲を `bgm/cache/` に取ってくる（書き出し時にも自動で取る） |
+| `gmm footage <録画> [--every 5]` | ゲーム録画の下見。時刻付きのコマ一覧画像と、暗転（ロード）区間の `!cut` 候補を出す |
 | `gmm terms <台本>` | 専門用語の候補（カタカナ語・英字の語）を回数・初出・glossary の有無つきで一覧する |
 | `gmm character import <psd> <dir>` | 立ち絵 PSD をレイヤーごとの PNG に分解する（下記「立ち絵」） |
 
@@ -182,6 +183,44 @@ AI が JSON を直接書いて `gmm build scenes.json` としてもよい。
 魔王魂の音源は再配布禁止なので、リポジトリには入れない（`bgm/cache/` は Git 管理外）。カタログの説明は曲ページの説明から写したもので、
 試聴して確かめた曲は `"heard": true` にする。曲を足すときは `bgm/maou.json` に追記する。
 
+## ゲーム実況（biim システム）
+
+フロントマターに `layout: biim` と書くと、ゲーム実況の台本として読む。画面は左上にゲーム（録画の縦横比のまま）、
+右にタイトル・カテゴリ・RTA タイマー・区間（スプリット）の一覧、下に話者の胸像と実況の字幕。
+
+```markdown
+---
+title: サンプルクエスト Any% RTA 2:14.00
+layout: biim
+video: sample-run.mp4      # 録画
+runStart: 0:06             # 録画内で計測を始めた時刻
+runEnd: 2:20               # 終えた時刻
+category: Any%
+speakers:                  # 話者: VOICEVOX の声（掛け合い）
+  ずんだもん: zundamon
+  めたん: metan
+characters:                # 話者: 立ち絵（めたんは素材がなければ組み込みキャラの色違い builtin-metan）
+  ずんだもん: zundamon
+  めたん: builtin-metan
+---
+
+!cut 0:50-0:54             # ロードを切る
+!fast 1:05-1:30 x4         # 倍速
+
+@0:00                      # 録画のこの時刻に話し始める
+ずんだもん: はい、よーいスタートなのだ。
+めたん: 今回遊ぶのは、サンプルクエストね。
+
+## 1-1 @0:06               # 区間。録画のこの時刻から
+```
+
+- 発言は前の発言が終わるまで待つ。`@` の時刻より 3 秒以上遅れると `gmm check` が知らせる（`lag`）
+- タイマーは録画の時刻から実時間で出す（カット・倍速の区間でも実時間で進む）。区間を終えるとそのタイムが一覧に出る
+- ゲーム音はナレーションに音量をそろえ、実況中は自動で下げる。倍速区間は無音
+- 録画の下見：`gmm footage <録画>` が N 秒ごとのコマを時刻付きの一覧画像にする。AI エージェントはこれを見て実況を下書きする
+  （スキル `rta-video`）。仕組みを試す仮の録画は `examples/rta/make-sample-run.sh` で作れる。完成例は `examples/rta/sample-run.md`
+- 検査用のブラウザ（Playwright の Chromium）は H.264 を再生できないので、`check` / `frames` では録画のコマを ffmpeg で切り出して表示する。MP4 の書き出しには影響しない
+
 ## テーマ
 
 `theme:` に組み込みテーマ名（`wakaba` / `dark`）か、テーマ JSON のパスを書く。JSON は変えたい項目だけ書けばよい。
@@ -236,12 +275,14 @@ src/
   theme.ts           F13 テーマ JSON の解決
   character.ts       F14 立ち絵の読み込み（character.json → 表情ごとのレイヤー集合）
   psd.ts             F14 PSD → レイヤー PNG
+  biim/              F18/F19 ゲーム実況：台本パーサ・タイムライン（カット・倍速・待ち行列）・録画の下見
 remotion/
   Video.tsx          全体の構成（シーン → 見出し + 部品）
   parts/             F4 部品集（Title / Bullets / Code / Text / Diagram / Math / Image）と組み込みキャラ
   Character.tsx      F14 立ち絵（口パク・まばたき・表情）
   Subtitle.tsx       F8 焼き込み字幕
   Sound.tsx          F9 BGM（ダッキング）・効果音
+  biim/              F18 ゲーム実況の画面とタイマー
   layout.ts          画面の割り付け（立ち絵・字幕の分の余白）
   theme.ts           組み込みテーマとテーマの型
 ```
