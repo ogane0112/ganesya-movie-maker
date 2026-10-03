@@ -10,3 +10,4 @@ characters/*/layers.json
 *.psd
 # BGM の音源（再配布禁止）。gmm bgm fetch で取り直す
 bgm/cache/
+examples/rta/*.mp4

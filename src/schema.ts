@@ -103,8 +103,14 @@ export const Scene = z.object({
       face: z.string().optional(),
       /** この文で説明している用語（glossary の用語） */
       explains: z.array(z.string()).optional(),
+      /** 話者（speakers の名前）。省略時は既定の声 */
+      speaker: z.string().optional(),
+      /** ゲーム実況: この発言を始めたい録画の時刻（秒） */
+      at: z.number().optional(),
     }),
   ),
+  /** ゲーム実況: この区間（スプリット）が始まる録画の時刻（秒）。区間でないシーン（計測前）は省略 */
+  splitAt: z.number().optional(),
   elements: z.array(Element),
 });
 
@@ -131,13 +137,38 @@ export const Meta = z.object({
   se: z.string().default("default"),
   /** 読み上げ速度（VOICEVOX の speedScale） */
   speed: z.number().default(1.0),
+  /** 画面構成。explainer: 解説動画 / biim: ゲーム実況（biim システム） */
+  layout: z.enum(["explainer", "biim"]).default("explainer"),
+  /** 話者の名前 → VOICEVOX の声（掛け合い用。台本では「名前: 発言」と書く） */
+  speakers: z.record(z.string(), z.string()).default({}),
+  /** 話者の名前 → 立ち絵（builtin / builtin-metan / characters/<名前>/） */
+  characters: z.record(z.string(), z.string()).default({}),
+  /** ゲーム実況: 録画ファイル（台本からの相対パス） */
+  video: z.string().optional(),
+  /** ゲーム実況: 録画内で計測を始めた時刻・終えた時刻（"1:23.45" か秒） */
+  runStart: z.union([z.string(), z.number()]).optional(),
+  runEnd: z.union([z.string(), z.number()]).optional(),
+  /** ゲーム実況: レギュレーション（Any% など） */
+  category: z.string().optional(),
+  /** ゲーム実況: ゲーム音の大きさ（実況がないとき）。実況中は自動で下げる */
+  gameVolume: z.number().min(0).max(1).default(0.5),
   fps: z.number().int().default(30),
   width: z.number().int().default(1920),
   height: z.number().int().default(1080),
 });
 
+/** ゲーム実況の編集。cut: 区間を切る（ロードなど）/ fast: rate 倍速にする。時刻は録画の秒 */
+export const Edit = z.object({
+  type: z.enum(["cut", "fast"]),
+  from: z.number(),
+  to: z.number(),
+  rate: z.number().positive().default(1),
+});
+export type Edit = z.infer<typeof Edit>;
+
 export const SceneDoc = z.object({
   version: z.literal(1).default(1),
+  edits: z.array(Edit).default([]),
   meta: Meta,
   scenes: z.array(Scene),
 });
@@ -222,10 +253,22 @@ export type ResolvedSentence = {
   face?: string;
   /** 口を開けている区間（シーン先頭からのフレーム） */
   mouth: [number, number][];
+  speaker?: string;
+  /** ゲーム実況: 前のシーンから続いている発言（このシーンでは字幕だけ出し、声は前のシーンで鳴っている） */
+  carry?: boolean;
+  /** ゲーム実況: 台本で指定した開始（シーン先頭からのフレーム）。実際の開始との差が「遅れ」 */
+  anchor?: number;
 };
+
+/** ゲーム実況: 出力の [from, from+durationInFrames) に、録画の videoFrom 秒から rate 倍速で流す */
+export type FootageSegment = { from: number; durationInFrames: number; videoFrom: number; rate: number };
 
 export type ResolvedScene = {
   id: string;
+  /** ゲーム実況: 動画全体での開始フレーム（シーン単位の書き出しでも変わらない。タイマーの計算に使う） */
+  globalStart?: number;
+  /** ゲーム実況: このシーンで流す録画の区間（フレームはシーン先頭から） */
+  footage?: FootageSegment[];
   heading: string;
   showHeading: boolean;
   /** 動画全体での開始フレーム */
@@ -249,7 +292,8 @@ export type ResolvedCharacter = {
   height: number;
   defaultFace: string;
 } & (
-  | { kind: "builtin" }
+  /** variant: 色違い（BUILTIN_PALETTES のキー） */
+  | { kind: "builtin"; variant?: string }
   | {
       kind: "layers";
       /** 元画像（PSD）のキャンバスサイズと、そのうち表示する範囲 */
@@ -281,5 +325,28 @@ export type Timeline = {
   scenes: ResolvedScene[];
   character?: ResolvedCharacter;
   /** シーン単位で書き出すとき（F10）だけ付く。何番目のシーンか、そのシーン開始時の表情 */
-  segment?: { index: number; initialFace?: string };
+  segment?: { index: number; initialFace?: string; initialFaces?: Record<string, string> };
+  /** 掛け合いの話者（声・立ち絵・字幕の色） */
+  cast?: CastMember[];
+  /** ゲーム実況の情報 */
+  run?: RunInfo;
+};
+
+export type CastMember = { name: string; color: string; character?: ResolvedCharacter };
+
+export type RunInfo = {
+  /** 録画（public/ からの相対パス）と大きさ */
+  video: string;
+  width: number;
+  height: number;
+  category?: string;
+  /** 録画内の計測開始・終了（秒） */
+  runStart: number;
+  runEnd: number;
+  /** 区間の名前と、その区間を終えた時点の計測タイム（秒） */
+  splits: { name: string; endRunTime: number }[];
+  /** 動画全体での録画の流し方（タイマーの計算に使う） */
+  footage: FootageSegment[];
+  /** ゲーム音（実況がないときの大きさ） */
+  gameVolume: number;
 };

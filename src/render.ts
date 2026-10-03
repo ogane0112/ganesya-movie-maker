@@ -26,11 +26,16 @@ export function sceneTimeline(t: Timeline, i: number): Timeline {
     .slice(0, i)
     .flatMap((s) => s.sentences)
     .reduce<string | undefined>((face, s) => s.face ?? face, undefined);
+  // 掛け合いでは話者ごとに
+  const initialFaces: Record<string, string> = {};
+  for (const s of t.scenes.slice(0, i).flatMap((x) => x.sentences)) {
+    if (s.speaker && s.face && !s.carry) initialFaces[s.speaker] = s.face;
+  }
   return {
     ...t,
     durationInFrames: scene.durationInFrames,
     scenes: [{ ...scene, start: 0 }],
-    segment: { index: i, initialFace },
+    segment: { index: i, initialFace, ...(Object.keys(initialFaces).length && { initialFaces }) },
   };
 }
 

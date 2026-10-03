@@ -2,6 +2,7 @@
 import { Img, interpolate, staticFile, useCurrentFrame } from "remotion";
 import type { ResolvedCharacter, Timeline } from "../src/schema";
 import { BuiltinCharacter } from "./parts/BuiltinCharacter";
+import { BUILTIN_PALETTES } from "./builtinCharacter";
 import { CHARACTER_MARGIN } from "./layout";
 
 
@@ -60,13 +61,40 @@ export const Character: React.FC<{ timeline: Timeline; character: ResolvedCharac
         transform: `translateY(${(1 - enter) * 40 + bob}px)`,
       }}
     >
-      {character.kind === "builtin" ? (
-        <BuiltinCharacter face={face} mouthOpen={mouthOpen} blink={blink} />
-      ) : (
-        <CharacterLayers character={character} face={face} mouthOpen={mouthOpen} blink={blink} />
-      )}
+      <CharacterArt character={character} face={face} mouthOpen={mouthOpen} blink={blink} />
     </div>
   );
+};
+
+/**
+ * 立ち絵そのもの（置き場所は親が決める）。bust: 胸から上だけを出す（ゲーム実況の下の帯など）。
+ * 胸から上の範囲は、レイヤーの立ち絵では表示範囲（crop）の上 45%、組み込みキャラでは上 70% とする。
+ */
+export const CharacterArt: React.FC<{ character: ResolvedCharacter; face: string; mouthOpen: boolean; blink: boolean; bust?: boolean }> = ({
+  character,
+  face,
+  mouthOpen,
+  blink,
+  bust,
+}) => {
+  if (character.kind === "builtin") {
+    const art = (
+      <BuiltinCharacter
+        face={face}
+        mouthOpen={mouthOpen}
+        blink={blink}
+        palette={BUILTIN_PALETTES[(character.variant ?? "builtin") as keyof typeof BUILTIN_PALETTES]}
+      />
+    );
+    if (!bust) return art;
+    return (
+      <div style={{ position: "absolute", inset: 0, overflow: "hidden" }}>
+        <div style={{ position: "absolute", left: 0, right: 0, top: 0, height: `${100 / 0.7}%` }}>{art}</div>
+      </div>
+    );
+  }
+  const c = bust ? { ...character, crop: { ...character.crop, height: character.crop.height * 0.45 } } : character;
+  return <CharacterLayers character={c} face={face} mouthOpen={mouthOpen} blink={blink} />;
 };
 
 const CharacterLayers: React.FC<{
@@ -78,17 +106,18 @@ const CharacterLayers: React.FC<{
   const states = character.expressions[face] ?? character.expressions[character.defaultFace];
   const visible = new Set(states[blink ? (mouthOpen ? "blinkOpen" : "blink") : mouthOpen ? "open" : "closed"]);
   const { canvas, crop } = character;
-  const scale = character.height / crop.height;
+  // 親の枠に表示範囲（crop）がぴったり収まるよう、割合で置く（枠の縦横比は crop と同じにしておく）
+  const pct = (v: number, of: number) => `${(v / of) * 100}%`;
   // 全レイヤーを常に置き、見せるものだけ不透明にする（切り替え時の読み込み待ちを避ける）
   return (
     <div style={{ position: "absolute", inset: 0, overflow: "hidden" }}>
       <div
         style={{
           position: "absolute",
-          left: -crop.x * scale,
-          top: -crop.y * scale,
-          width: canvas.width * scale,
-          height: canvas.height * scale,
+          left: pct(-crop.x, crop.width),
+          top: pct(-crop.y, crop.height),
+          width: pct(canvas.width, crop.width),
+          height: pct(canvas.height, crop.height),
           isolation: "isolate",
         }}
       >

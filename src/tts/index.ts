@@ -32,8 +32,12 @@ export async function synthesizeAll(doc: SceneDoc, outDir: string, opts: TtsOpti
       log(`VOICEVOX（${opts.voicevoxUrl}）に接続できないため、無音の仮音声（長さは文字数から推定）で進めます`);
     }
   }
-  const vv = provider === "voicevox" ? await resolveVoicevoxSpeaker(opts.voicevoxUrl, doc.meta.voice) : undefined;
-  const speaker = vv?.id ?? 0;
+  // 掛け合いでは話者ごとに声が違う（speakers: 名前 → 声）。声ごとに一度だけ話者IDを調べる
+  const voiceOf = (name?: string) => (name && doc.meta.speakers[name]) || doc.meta.voice;
+  const voices = new Map<string, { id: number; name: string } | undefined>();
+  for (const v of new Set(doc.scenes.flatMap((s) => s.sentences.map((x) => voiceOf(x.speaker))))) {
+    voices.set(v, provider === "voicevox" ? await resolveVoicevoxSpeaker(opts.voicevoxUrl, v) : undefined);
+  }
 
   await mkdir(join(outDir, "public/audio"), { recursive: true });
   const sentences: SentenceAudio[] = [];
@@ -41,6 +45,7 @@ export async function synthesizeAll(doc: SceneDoc, outDir: string, opts: TtsOpti
   for (const scene of doc.scenes) {
     for (const [index, sentence] of scene.sentences.entries()) {
       const { text } = sentence;
+      const speaker = voices.get(voiceOf(sentence.speaker))?.id ?? 0;
       const speech = applyReadings(sentence.speech ?? text, doc.meta.readings);
       const key = createHash("sha1")
         .update(JSON.stringify([provider, speaker, doc.meta.speed, speech]))
@@ -76,7 +81,7 @@ export async function synthesizeAll(doc: SceneDoc, outDir: string, opts: TtsOpti
     }
   }
   log(`音声: ${sentences.length}文（新規 ${made} / キャッシュ ${sentences.length - made}）provider=${provider}`);
-  const timing: AudioTiming = { provider, voice: doc.meta.voice, credit: vv && `VOICEVOX:${vv.name}`, sentences };
+  const timing: AudioTiming = { provider, voice: doc.meta.voice, credit: provider === "voicevox" ? [...new Set([...voices.values()].map((v) => `VOICEVOX:${v!.name}`))].join("、") : undefined, sentences };
   await writeFile(join(outDir, "audio-timing.json"), JSON.stringify(timing, null, 2));
   return timing;
 }

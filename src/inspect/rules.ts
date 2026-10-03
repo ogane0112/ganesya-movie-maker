@@ -29,6 +29,8 @@ export const LIMITS = {
   maxBullets: 6,
   maxCodeLines: 14,
   maxDiagramNodes: 5,
+  /** ゲーム実況: 発言が @ の時刻からこれ以上遅れたら知らせる（秒） */
+  maxLagSec: 3,
   /** 既定以外の表情が続いてよい文の数 */
   maxFaceSentences: 4,
   /** 1画面に出す文字数の上限（見出しを除く） */
@@ -40,17 +42,13 @@ export const LIMITS = {
   maxSentenceSec: 12,
 };
 
-export function checkLayout(m: Measurement, sceneLabel: string): Issue[] {
+export function checkLayout(m: Measurement, sceneLabel: string, opts: { safeMargin?: number } = {}): Issue[] {
+  const margin = opts.safeMargin ?? LIMITS.safeMargin;
   const issues: Issue[] = [];
   const push = (severity: Issue["severity"], rule: string, message: string, hint: string) =>
     issues.push({ severity, sceneId: m.sceneId, rule, message: `${sceneLabel}: ${message}`, hint });
 
-  const safe = {
-    left: LIMITS.safeMargin,
-    top: LIMITS.safeMargin,
-    right: m.canvas.width - LIMITS.safeMargin,
-    bottom: m.canvas.height - LIMITS.safeMargin,
-  };
+  const safe = { left: margin, top: margin, right: m.canvas.width - margin, bottom: m.canvas.height - margin };
   for (const el of m.elements) {
     // 立ち絵は画面下端に接して置くのが正しいので、安全領域の検査から外す（重なりは検査する）
     if (el.kind === "character") continue;
@@ -198,6 +196,39 @@ export function checkScene(scene: ResolvedScene, timeline: Timeline): Issue[] {
   }
   if (scene.elements.length === 0) {
     push("warn", "empty", "見出し以外に画面に出すものがありません", ":::bullets などで要点を出してください");
+  }
+  return issues;
+}
+
+/** ゲーム実況（biim）のシーンの検査：実況の遅れ・録画の終わり超え・長すぎる文 */
+export function checkBiimScene(scene: ResolvedScene, timeline: Timeline, isLast: boolean): Issue[] {
+  const { fps } = timeline.meta;
+  const issues: Issue[] = [];
+  const label = `${scene.id}「${scene.heading}」`;
+  for (const s of scene.sentences) {
+    if (s.carry) continue;
+    const short = s.text.length > 18 ? `${s.text.slice(0, 18)}…` : s.text;
+    if (s.anchor !== undefined && (s.from - s.anchor) / fps > LIMITS.maxLagSec) {
+      issues.push({
+        severity: "warn",
+        sceneId: scene.id,
+        rule: "lag",
+        message: `${label}: 「${short}」が、指定した時刻より${((s.from - s.anchor) / fps).toFixed(1)}秒遅れて始まります`,
+        hint: "前の発言を短くするか減らす、または @ の時刻を後ろにずらしてください（映像と話がずれます）",
+      });
+    }
+    if (s.durationInFrames / fps > LIMITS.maxSentenceSec) {
+      issues.push({ severity: "warn", sceneId: scene.id, rule: "long-sentence", message: `${label}: 「${short}」が長すぎます（${(s.durationInFrames / fps).toFixed(1)}秒）`, hint: "文を2つに分けてください" });
+    }
+    if (isLast && s.from + s.durationInFrames > scene.durationInFrames) {
+      issues.push({
+        severity: "error",
+        sceneId: scene.id,
+        rule: "past-end",
+        message: `${label}: 「${short}」が録画の終わりを越えます`,
+        hint: "終わりの発言を減らすか短くしてください",
+      });
+    }
   }
   return issues;
 }

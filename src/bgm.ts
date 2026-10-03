@@ -3,8 +3,8 @@
 // エージェントはその説明（雰囲気・合う場面）を読んで曲を選ぶ。
 import { createHash } from "node:crypto";
 import { existsSync } from "node:fs";
-import { mkdir, readFile, readdir, writeFile } from "node:fs/promises";
-import { dirname, join } from "node:path";
+import { mkdir, readFile, readdir, stat, writeFile } from "node:fs/promises";
+import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { z } from "zod";
 import { measureLoudness } from "./ffmpeg.js";
@@ -87,9 +87,16 @@ export async function fetchTrack(t: BgmTrack): Promise<string> {
   }
 }
 
-/** 音の大きさ（LUFS）と長さ。測った結果は中身のハッシュで bgm/cache/.loudness/ に保存して使い回す */
-export async function loudnessOf(file: string): Promise<{ lufs: number; seconds: number }> {
-  const key = createHash("sha1").update(await readFile(file)).digest("hex").slice(0, 16);
+/**
+ * 音の大きさ（LUFS）と長さ。測った結果は bgm/cache/.loudness/ に保存して使い回す。
+ * 鍵は中身のハッシュ。大きな録画（byStat）は読み切らずに、パス・大きさ・更新時刻を鍵にする
+ */
+export async function loudnessOf(file: string, opts: { byStat?: boolean } = {}): Promise<{ lufs: number; seconds: number }> {
+  const s = await stat(file);
+  const key = createHash("sha1")
+    .update(opts.byStat ? `${resolve(file)}:${s.size}:${s.mtimeMs}` : await readFile(file))
+    .digest("hex")
+    .slice(0, 16);
   const memo = join(CACHE, ".loudness", `${key}.json`);
   if (existsSync(memo)) return JSON.parse(await readFile(memo, "utf8"));
   const r = await measureLoudness(file);

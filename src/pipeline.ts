@@ -5,9 +5,13 @@ import { createHash } from "node:crypto";
 import { existsSync } from "node:fs";
 import { copyFile, mkdir, readFile, writeFile } from "node:fs/promises";
 import { basename, dirname, extname, join } from "node:path";
-import { prepareAudioAssets } from "./audio.js";
-import { loadCharacter } from "./character.js";
-import { parseScript } from "./parse.js";
+import { NARRATION_LUFS, prepareAudioAssets } from "./audio.js";
+import { placeFootage, probeVideo } from "./biim/footage.js";
+import { buildBiimTimeline } from "./biim/timeline.js";
+import { loudnessOf } from "./bgm.js";
+import { loadCast, loadCharacter } from "./character.js";
+import { parseBiimScript } from "./biim/parse.js";
+import { parseFrontMatter, parseScript } from "./parse.js";
 import { SceneDoc, type Timeline } from "./schema.js";
 import { toSrt } from "./subtitles.js";
 import { loadTheme } from "./theme.js";
@@ -38,7 +42,9 @@ export async function loadSceneDoc(input: string): Promise<SceneDoc> {
     }
     return r.data;
   }
-  return parseScript(src);
+  // layout: biim ならゲーム実況の台本として読む
+  const { meta } = parseFrontMatter(src.replace(/\r\n/g, "\n").split("\n"));
+  return meta.layout === "biim" ? parseBiimScript(src) : parseScript(src);
 }
 
 export async function prepare(input: string, opts: PipelineOptions): Promise<{ doc: SceneDoc; timeline: Timeline; outDir: string }> {
@@ -52,6 +58,7 @@ export async function prepare(input: string, opts: PipelineOptions): Promise<{ d
     log: opts.log,
     requireVoice: opts.requireVoice,
   });
+  if (doc.meta.layout === "biim") return prepareBiim(doc, audio, input, outDir, opts);
   const character = await loadCharacter(doc, input, outDir);
   const theme = await loadTheme(doc.meta.theme, input, outDir);
   const audioAssets = await prepareAudioAssets(doc.meta, input, outDir, { strict: opts.requireVoice, log: opts.log });
@@ -79,4 +86,33 @@ async function copyImages(doc: SceneDoc, input: string, outDir: string): Promise
     }
   }
   return doc;
+}
+
+/** ゲーム実況（layout: biim）：録画を調べて置き、話者ごとの立ち絵を読み、タイムラインを作る */
+async function prepareBiim(
+  doc: SceneDoc,
+  audio: Awaited<ReturnType<typeof synthesizeAll>>,
+  input: string,
+  outDir: string,
+  opts: PipelineOptions,
+): Promise<{ doc: SceneDoc; timeline: Timeline; outDir: string }> {
+  const video = join(dirname(input), doc.meta.video!);
+  const probe = await probeVideo(video);
+  const src = await placeFootage(video, outDir);
+  // ゲーム音の大きさをナレーションにそろえる（音が無い録画は 0）
+  let gameGain = 0;
+  if (probe.hasAudio) {
+    const { lufs } = await loudnessOf(video, { byStat: true });
+    gameGain = Number.isFinite(lufs) ? Math.min(4, Math.pow(10, (NARRATION_LUFS - lufs) / 20)) : 0;
+  }
+  const theme = await loadTheme(doc.meta.theme, input, outDir);
+  const cast = await loadCast(doc, input, outDir);
+  const audioAssets = await prepareAudioAssets(doc.meta, input, outDir, { strict: opts.requireVoice, log: opts.log });
+  const timeline = buildBiimTimeline(doc, audio, theme, cast, { src, ...probe }, audioAssets, gameGain);
+  await writeFile(join(outDir, "timeline.json"), JSON.stringify(timeline, null, 2));
+  if (doc.meta.subtitles !== "none") await writeFile(join(outDir, "subtitles.srt"), toSrt(timeline));
+  const credits = [audio.credit, ...cast.map((c) => c.character?.credit), audioAssets.bgm?.credit].filter(Boolean);
+  await writeFile(join(outDir, "credits.txt"), [...new Set(credits)].join("\n") + (credits.length ? "\n" : ""));
+  opts.log(`タイムライン: ${timeline.scenes.length}区間 / ${(timeline.durationInFrames / timeline.meta.fps).toFixed(1)}秒（録画 ${probe.duration.toFixed(1)}秒）`);
+  return { doc, timeline, outDir };
 }

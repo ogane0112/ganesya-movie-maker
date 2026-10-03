@@ -1,7 +1,8 @@
 // F6 自動検査 と F7 キーフレーム書き出し。
 // 検査用ページを esbuild で作り、Playwright で開いて各シーンの最終フレームを測る・撮る。
 import { build } from "esbuild";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { ffmpeg } from "../ffmpeg.js";
 import { createServer, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
 import { dirname, extname, join, normalize, relative } from "node:path";
@@ -9,7 +10,7 @@ import { fileURLToPath } from "node:url";
 import { chromium, type Page } from "playwright-core";
 import { findBrowser } from "../browser.js";
 import type { ResolvedScene, Timeline } from "../schema.js";
-import { checkFaces, checkLayout, checkScene, checkSubtitle, checkTerms, type Issue } from "./rules.js";
+import { checkBiimScene, checkFaces, checkLayout, checkScene, checkSubtitle, checkTerms, type Issue } from "./rules.js";
 
 const here = dirname(fileURLToPath(import.meta.url));
 
@@ -39,6 +40,9 @@ const MIME: Record<string, string> = {
   ".woff2": "font/woff2",
   ".woff": "font/woff",
   ".ttf": "font/ttf",
+  ".mp4": "video/mp4",
+  ".webm": "video/webm",
+  ".mov": "video/quicktime",
   ".jpg": "image/jpeg",
   ".jpeg": "image/jpeg",
   ".svg": "image/svg+xml",
@@ -49,11 +53,38 @@ const MIME: Record<string, string> = {
 /** 出力ディレクトリを配信するだけのHTTPサーバー（file:// だとスクリプトとフォントが読めないため） */
 async function serve(root: string): Promise<{ url: string; server: Server }> {
   const server = createServer(async (req, res) => {
-    const path = normalize(decodeURIComponent(new URL(req.url ?? "/", "http://x").pathname)).replace(/^(\.\.[/\\])+/, "");
+    const url = new URL(req.url ?? "/", "http://x");
+    const path = normalize(decodeURIComponent(url.pathname)).replace(/^(\.\.[/\\])+/, "");
+    // ゲーム実況の録画のコマ（検査用ブラウザは H.264 を再生できないので、ffmpeg で切り出して渡す）
+    if (path === "/__frame") {
+      try {
+        const src = normalize(url.searchParams.get("src") ?? "").replace(/^(\.\.[/\\])+/, "");
+        const t = Math.max(0, Number(url.searchParams.get("t")));
+        const out = join(root, ".inspect", `frame-${process.pid}-${Math.random().toString(36).slice(2)}.jpg`);
+        await ffmpeg(["-ss", t.toFixed(3), "-i", join(root, "public", src), "-frames:v", "1", "-q:v", "3", out]);
+        const body = await readFile(out);
+        await rm(out, { force: true });
+        res.writeHead(200, { "Content-Type": "image/jpeg" }).end(body);
+      } catch {
+        res.writeHead(404).end();
+      }
+      return;
+    }
     try {
       // staticFile() の参照（public/ 以下）もそのまま引けるようにする
       const body = await readFile(join(root, path)).catch(() => readFile(join(root, "public", path)));
-      res.writeHead(200, { "Content-Type": MIME[extname(path)] ?? "application/octet-stream" }).end(body);
+      const type = MIME[extname(path)] ?? "application/octet-stream";
+      // 動画の頭出しには Range 要求への対応が要る
+      const range = req.headers.range?.match(/bytes=(\d*)-(\d*)/);
+      if (range) {
+        const start = range[1] ? Number(range[1]) : 0;
+        const end = range[2] ? Math.min(Number(range[2]), body.length - 1) : body.length - 1;
+        res
+          .writeHead(206, { "Content-Type": type, "Content-Range": `bytes ${start}-${end}/${body.length}`, "Accept-Ranges": "bytes", "Content-Length": end - start + 1 })
+          .end(body.subarray(start, end + 1));
+      } else {
+        res.writeHead(200, { "Content-Type": type, "Accept-Ranges": "bytes", "Content-Length": body.length }).end(body);
+      }
     } catch {
       res.writeHead(404).end();
     }
@@ -103,14 +134,16 @@ export async function runChecks(timeline: Timeline, outDir: string): Promise<Iss
   const session = await openInspector(timeline, outDir);
   try {
     for (const scene of timeline.scenes) {
-      issues.push(...checkScene(scene, timeline));
+      const biim = !!timeline.run;
+      issues.push(...(biim ? checkBiimScene(scene, timeline, scene === timeline.scenes.at(-1)) : checkScene(scene, timeline)));
       await session.show(finalFrame(scene));
       const label = `${scene.id}「${scene.heading}」`;
       const m = await session.page.evaluate(() => window.gmm.measure());
-      issues.push(...checkLayout(m, label));
+      // ゲーム実況の画面は端まで使うので、画面からはみ出していないかだけを見る
+      issues.push(...checkLayout(m, label, biim ? { safeMargin: 0 } : {}));
       // 字幕は文ごとに変わるので、各文の表示中に測る（立ち絵は字幕の横に置くので重なりの対象から外す）
       const contentEls = m.elements.filter((e) => e.kind !== "character");
-      for (const s of scene.sentences) {
+      for (const s of scene.sentences.filter((x) => !x.carry)) {
         await session.show(scene.start + s.from + 1);
         const sub = await session.page.evaluate(() => window.gmm.measureSubtitle());
         if (sub) issues.push(...checkSubtitle(sub, contentEls, scene.id, label));

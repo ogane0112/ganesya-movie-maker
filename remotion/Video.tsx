@@ -9,6 +9,7 @@ import type { Theme } from "./theme";
 import { appearStyle, useAppear } from "./anim";
 import { Character } from "./Character";
 import { computeLayout, type Layout } from "./layout";
+import { BiimScene } from "./biim/BiimScene";
 import { Sound } from "./Sound";
 import { Subtitle } from "./Subtitle";
 import { Bullets } from "./parts/Bullets";
@@ -52,7 +53,11 @@ export const Video: React.FC<VideoProps> = ({ timeline, withAudio = true }) => {
       )}
       {timeline.scenes.map((scene) => (
         <Sequence key={scene.id} from={scene.start} durationInFrames={scene.durationInFrames} name={`${scene.id} ${scene.heading}`}>
-          <SceneView scene={scene} theme={theme} layout={layout} />
+          {timeline.run ? (
+            <BiimScene scene={scene} timeline={timeline} withAudio={withAudio} />
+          ) : (
+            <SceneView scene={scene} theme={theme} layout={layout} />
+          )}
           {withAudio &&
             scene.sentences.map(
               (s, i) =>
@@ -67,6 +72,7 @@ export const Video: React.FC<VideoProps> = ({ timeline, withAudio = true }) => {
       {ch && <Character timeline={timeline} character={ch} />}
       {withAudio && <Sound timeline={timeline} />}
       {layout.subtitle &&
+        !timeline.run &&
         timeline.scenes.map((scene) => (
           <Sequence key={scene.id} from={scene.start} durationInFrames={scene.durationInFrames} layout="none">
             <Subtitle scene={scene} box={layout.subtitle!} theme={theme} />

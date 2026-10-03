@@ -9,7 +9,9 @@ import { importPsd } from "./psd.js";
 import { findTermCandidates } from "./terms.js";
 import { cachePath, fetchTrack, findTrack, loadCatalogs } from "./bgm.js";
 import { existsSync } from "node:fs";
-import { loadSceneDoc, prepare, type PipelineOptions } from "./pipeline.js";
+import { defaultOutDir, loadSceneDoc, prepare, type PipelineOptions } from "./pipeline.js";
+import { overviewFootage } from "./biim/footage.js";
+import { formatTime, parseTime } from "./biim/parse.js";
 import { preview, renderVideo } from "./render.js";
 
 // head などに渡して途中で閉じられても落ちないようにする
@@ -107,6 +109,28 @@ withCommon(program.command("build").description("検査 → キーフレーム �
       await renderVideo(timeline, outDir, output, log);
       console.log(`動画: ${output}`);
     }
+  });
+
+program
+  .command("footage")
+  .description("F19: 録画を下見する。N秒ごとのコマを時刻付きの一覧画像にし、暗転（ロード）の区間を !cut の候補として出す")
+  .argument("<video>", "録画ファイル")
+  .option("-o, --out <dir>", "出力ディレクトリ（既定: build/<録画名>）")
+  .option("--every <sec>", "何秒ごとにコマを取るか", (v) => Number(v), 5)
+  .option("--from <time>", "ここから（例: 1:30）")
+  .option("--to <time>", "ここまで")
+  .action(async (video, o) => {
+    const out = o.out ?? defaultOutDir(video);
+    const r = await overviewFootage(video, out, {
+      every: o.every,
+      from: o.from === undefined ? undefined : parseTime(o.from),
+      to: o.to === undefined ? undefined : parseTime(o.to),
+    });
+    console.log(`録画: ${r.probe.width}x${r.probe.height} / ${formatTime(r.probe.duration)}${r.probe.hasAudio ? "" : "（音なし）"}`);
+    console.log(`\nコマの一覧（${r.every}秒ごと・1枚12コマ。各コマの左上が録画の時刻）:`);
+    for (const f of r.sheets) console.log(`  ${f}`);
+    console.log(r.blacks.length ? "\n暗転している区間（ロードなら台本に貼る）:" : "\n暗転している区間はありません");
+    for (const [a, b] of r.blacks) console.log(`  !cut ${formatTime(a)}-${formatTime(b)}`);
   });
 
 program

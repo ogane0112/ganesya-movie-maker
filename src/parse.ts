@@ -18,27 +18,34 @@ export class ScriptError extends Error {
 
 type BlockArgs = { at?: number; params: Record<string, string> };
 
+export type FrontMatter = Record<string, string | number | Record<string, string>>;
+
+/**
+ * フロントマター（--- で囲んだ「キー: 値」）を読む。返す next は本文の最初の行。
+ * 値が空のキーの下に字下げした「キー: 値」を並べると、その組の表（readings など）になる。
+ */
+export function parseFrontMatter(lines: string[]): { meta: FrontMatter; next: number } {
+  const meta: FrontMatter = {};
+  if (lines[0]?.trim() !== "---") return { meta, next: 0 };
+  let i = 1;
+  let table: Record<string, string> | undefined;
+  while (i < lines.length && lines[i].trim() !== "---") {
+    // 値の後ろの「 # コメント」は読み飛ばす
+    const nested = table && lines[i].replace(/\s+#\s.*$/, "").match(/^\s+(.+?)\s*:\s*(.+)$/);
+    const m = lines[i].match(/^(\w+)\s*:\s*(.*?)\s*(#.*)?$/);
+    if (nested) table![nested[1].replace(/^["'](.*)["']$/, "$1")] = String(coerce(nested[2].trim()));
+    else if (m && m[2] === "") meta[m[1]] = table = {};
+    else if (m) (meta[m[1]] = coerce(m[2])), (table = undefined);
+    i++;
+  }
+  return { meta, next: i + 1 };
+}
+
 export function parseScript(source: string): SceneDoc {
   const problems: string[] = [];
   const lines = source.replace(/\r\n/g, "\n").split("\n");
-  let i = 0;
-
-  // フロントマター
-  // 値が空のキーの下に字下げした「キー: 値」を並べると、その組の表（readings など）になる
-  const meta: Record<string, string | number | Record<string, string>> = {};
-  if (lines[0]?.trim() === "---") {
-    i = 1;
-    let table: Record<string, string> | undefined;
-    while (i < lines.length && lines[i].trim() !== "---") {
-      const nested = table && lines[i].match(/^\s+(.+?)\s*:\s*(.+)$/);
-      const m = lines[i].match(/^(\w+)\s*:\s*(.*?)\s*(#.*)?$/);
-      if (nested) table![nested[1].replace(/^["'](.*)["']$/, "$1")] = String(coerce(nested[2].trim()));
-      else if (m && m[2] === "") meta[m[1]] = table = {};
-      else if (m) (meta[m[1]] = coerce(m[2])), (table = undefined);
-      i++;
-    }
-    i++;
-  }
+  const { meta, next } = parseFrontMatter(lines);
+  let i = next;
 
   const scenes: Scene[] = [];
   let current: { heading: string; line: number; narration: string[]; elements: { el: unknown; line: number }[] } | null = null;
@@ -140,13 +147,13 @@ export function splitSentences(text: string): string[] {
 /** {表記|よみ}: 字幕には表記を出し、読み上げはよみを使う */
 const READING = /\{([^{}|]+)\|([^{}]+)\}/g;
 
-type Sentence = { text: string; speech?: string; face?: string; explains?: string[] };
+export type Sentence = { text: string; speech?: string; face?: string; explains?: string[] };
 
 /**
  * 文頭の {face:表情} と {term:用語} を取り出す（順不同・複数可）。
  * 印だけの行は次の文に付ける。{term:用語} は「この文で用語を説明している」という印。
  */
-function takeSentenceMarkers(sentences: string[]): Sentence[] {
+export function takeSentenceMarkers(sentences: string[]): Sentence[] {
   const out: Sentence[] = [];
   let pending: { face?: string; explains: string[] } = { explains: [] };
   for (const s of sentences) {

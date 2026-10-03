@@ -8,6 +8,8 @@ import { Video, type VideoProps } from "../../remotion/Video";
 import type { Measurement, SubtitleMeasurement } from "./rules";
 
 const root = createRoot(document.getElementById("root")!);
+// 検査用ページであることを部品に知らせる（録画はコマの画像で表示する）
+(window as unknown as { __gmmInspect: boolean }).__gmmInspect = true;
 
 async function show(timeline: Timeline, frame: number): Promise<void> {
   const { width, height, fps } = timeline.meta;
@@ -28,6 +30,12 @@ async function show(timeline: Timeline, frame: number): Promise<void> {
   for (let i = 0; i < 3; i++) await new Promise((r) => requestAnimationFrame(r));
   await document.fonts.ready;
   await Promise.all([...document.images].map((img) => img.decode().catch(() => {})));
+  // 動画（ゲーム実況の録画）は、頭出しが終わって絵が出るまで待つ
+  const deadline = performance.now() + 8000;
+  while ([...document.querySelectorAll("video")].some((v) => v.readyState < 2 || v.seeking) && performance.now() < deadline) {
+    await new Promise((r) => setTimeout(r, 50));
+  }
+  for (let i = 0; i < 2; i++) await new Promise((r) => requestAnimationFrame(r));
 }
 
 function measure(): Measurement {

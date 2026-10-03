@@ -10,9 +10,9 @@ import { existsSync } from "node:fs";
 import { copyFile, mkdir, readFile } from "node:fs/promises";
 import { basename, dirname, join, resolve } from "node:path";
 import { z } from "zod";
-import { BUILTIN_CHARACTER, BUILTIN_FACES } from "../remotion/builtinCharacter.js";
+import { BUILTIN_CHARACTER, BUILTIN_FACES, BUILTIN_PALETTES } from "../remotion/builtinCharacter.js";
 import type { LayersFile } from "./psd.js";
-import type { CharacterLayer, CharacterStates, ResolvedCharacter, SceneDoc } from "./schema.js";
+import type { CastMember, CharacterLayer, CharacterStates, ResolvedCharacter, SceneDoc } from "./schema.js";
 
 const Parts = z.array(z.string());
 const PartSet = z.object({
@@ -46,13 +46,42 @@ export const CharacterFile = PartSet.extend({
 export type CharacterFile = z.infer<typeof CharacterFile>;
 
 export async function loadCharacter(doc: SceneDoc, scriptPath: string, outDir: string): Promise<ResolvedCharacter | undefined> {
-  const spec = doc.meta.character;
+  const faces = doc.scenes.flatMap((s) => s.sentences.map((x) => x.face));
+  return loadCharacterSpec(doc.meta.character, faces, scriptPath, outDir);
+}
+
+/** 掛け合いの話者ごとの声・立ち絵・字幕の色（speakers: と characters:） */
+export async function loadCast(doc: SceneDoc, scriptPath: string, outDir: string): Promise<CastMember[]> {
+  const names = Object.keys(doc.meta.speakers);
+  const cast: CastMember[] = [];
+  for (const [i, name] of names.entries()) {
+    const spec = doc.meta.characters[name] ?? "none";
+    const faces = doc.scenes.flatMap((s) => s.sentences.filter((x) => x.speaker === name).map((x) => x.face));
+    const character = await loadCharacterSpec(spec, faces, scriptPath, outDir).catch((e: Error) => {
+      throw new Error(`話者「${name}」の立ち絵: ${e.message}`);
+    });
+    const palette = BUILTIN_PALETTES[spec as keyof typeof BUILTIN_PALETTES];
+    cast.push({ name, color: palette?.hairDark ?? CAST_COLORS[i % CAST_COLORS.length], character });
+  }
+  return cast;
+}
+
+/** 字幕の話者名の色（立ち絵が組み込みでないとき） */
+const CAST_COLORS = ["#3a7a37", "#b0437f", "#335f96", "#b06a1c"];
+
+async function loadCharacterSpec(
+  spec: string,
+  usedFaces: (string | undefined)[],
+  scriptPath: string,
+  outDir: string,
+): Promise<ResolvedCharacter | undefined> {
   if (spec === "none") return undefined;
 
   let character: ResolvedCharacter;
   let faces: string[];
-  if (spec === "builtin") {
-    character = { kind: "builtin", ...BUILTIN_CHARACTER };
+  if (spec in BUILTIN_PALETTES) {
+    const palette = BUILTIN_PALETTES[spec as keyof typeof BUILTIN_PALETTES];
+    character = { kind: "builtin", ...BUILTIN_CHARACTER, name: palette.name, variant: spec };
     faces = [...BUILTIN_FACES];
   } else {
     const dir = [spec, join(dirname(scriptPath), "characters", spec), join("characters", spec)].find((d) =>
@@ -72,9 +101,7 @@ export async function loadCharacter(doc: SceneDoc, scriptPath: string, outDir: s
     character = await resolveLayers(def, dir, outDir);
   }
 
-  const unknown = new Set(
-    doc.scenes.flatMap((s) => s.sentences.map((x) => x.face)).filter((f): f is string => !!f && !faces.includes(f)),
-  );
+  const unknown = new Set(usedFaces.filter((f): f is string => !!f && !faces.includes(f)));
   if (unknown.size) {
     throw new Error(`立ち絵「${character.name}」にない表情が指定されています: ${[...unknown].join(", ")}（使えるのは ${faces.join(", ")}）`);
   }

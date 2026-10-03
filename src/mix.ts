@@ -2,16 +2,17 @@
 // 音量や位置はプレビュー（remotion/Video.tsx・Sound.tsx）と同じ timeline と関数から決めるので、聞こえ方は同じになる。
 import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { bgmVolumeAt, speechSpans } from "../remotion/Sound.js";
+import { bgmVolumeAt, GAME_DUCK, speakingAmount, speechSpans } from "../remotion/Sound.js";
 import { ffmpeg } from "./ffmpeg.js";
 import type { Timeline } from "./schema.js";
 
 export const MIX_RATE = 48000;
 
-/** ステレオ・48kHz・float にデコードする */
-async function decode(file: string, tmp: string): Promise<Float32Array> {
+/** ステレオ・48kHz・float にデコードする（range: 録画の一部だけ [開始秒, 長さ秒]） */
+async function decode(file: string, tmp: string, range?: [number, number]): Promise<Float32Array> {
   const raw = join(tmp, "decode.f32");
-  await ffmpeg(["-i", file, "-f", "f32le", "-ac", "2", "-ar", String(MIX_RATE), raw]);
+  const cut = range ? ["-ss", range[0].toFixed(3), "-t", range[1].toFixed(3)] : [];
+  await ffmpeg([...cut, "-i", file, "-vn", "-f", "f32le", "-ac", "2", "-ar", String(MIX_RATE), raw]);
   const buf = await readFile(raw);
   return new Float32Array(buf.buffer, buf.byteOffset, buf.byteLength / 4);
 }
@@ -49,9 +50,17 @@ export async function mixAudio(t: Timeline, outDir: string, output: string): Pro
   }
   const { bgm, se } = t.audio;
   if (se) for (const scene of t.scenes.slice(1)) add(await load(se.src), scene.start, () => se.volume, frames - scene.start);
-  if (bgm) {
-    const spans = speechSpans(t);
-    add(await load(bgm.src), 0, (f) => bgmVolumeAt(f, t, spans), frames, true);
+  const spans = speechSpans(t);
+  if (bgm) add(await load(bgm.src), 0, (f) => bgmVolumeAt(f, t, spans), frames, true);
+  // ゲーム実況: 録画の音（等速の区間だけ。倍速の区間は消す）。実況中は下げる
+  if (t.run && t.run.gameVolume > 0) {
+    const vol = t.run.gameVolume;
+    // 長い録画を丸ごと読むとメモリが足りないので、使う区間ごとに切り出して読む
+    for (const s of t.run.footage.filter((x) => x.rate === 1)) {
+      const clip = await decode(pub(t.run.video), tmp, [s.videoFrom, s.durationInFrames / fps]).catch(() => undefined); // 音の無い録画
+      if (!clip) break;
+      add(clip, s.from, (f) => vol * (1 - (1 - GAME_DUCK) * speakingAmount(f, spans)), s.durationInFrames);
+    }
   }
 
   // 16bit WAV に書き出す
