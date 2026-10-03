@@ -25,8 +25,6 @@ export const Subtitle: React.FC<{ scene: ResolvedScene; box: NonNullable<Layout[
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
-        background: st.background,
-        borderRadius: 16,
       }}
     >
       <div
@@ -37,8 +35,13 @@ export const Subtitle: React.FC<{ scene: ResolvedScene; box: NonNullable<Layout[
           fontWeight: 700,
           color: st.color,
           textAlign: "center",
-          padding: "0 24px",
-          textShadow: outline(Math.max(3, Math.round(st.fontSize / 9)), st.stroke),
+          // 背景は文字の幅に合わせた帯にする（短い字幕で横長の箱が出ないように）
+          background: st.background,
+          borderRadius: 14,
+          padding: "6px 32px",
+          maxWidth: "100%",
+          boxSizing: "border-box",
+          textShadow: st.stroke === "none" ? undefined : outline(Math.max(3, Math.round(st.fontSize / 9)), st.stroke),
         }}
       >
         {s.text}

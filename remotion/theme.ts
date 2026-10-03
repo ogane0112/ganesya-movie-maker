@@ -23,9 +23,9 @@ export const Theme = z.object({
   subtitle: z.object({
     fontSize: z.number(),
     color: z.string(),
-    /** 文字の縁取り */
+    /** 文字の縁取りの色（none で縁取りなし） */
     stroke: z.string(),
-    /** 字幕帯の背景（不要なら transparent） */
+    /** 字幕の背景（文字の幅に合わせた帯。不要なら transparent） */
     background: z.string(),
   }),
   /** 追加のフォント。src はテーマファイルからの相対パス */
@@ -52,7 +52,7 @@ export const THEMES: Record<string, Theme> = {
     codeTheme: "github-dark",
     fontSize: 48,
     padding: 96,
-    subtitle: { fontSize: 44, color: "#ffffff", stroke: "#24502a", background: "rgba(31, 45, 31, 0.0)" },
+    subtitle: { fontSize: 44, color: "#ffffff", stroke: "none", background: "rgba(24, 52, 28, 0.82)" },
     fonts: [],
   },
   dark: {
@@ -69,7 +69,7 @@ export const THEMES: Record<string, Theme> = {
     codeTheme: "github-dark",
     fontSize: 48,
     padding: 96,
-    subtitle: { fontSize: 44, color: "#ffffff", stroke: "#000000", background: "rgba(0, 0, 0, 0.0)" },
+    subtitle: { fontSize: 44, color: "#ffffff", stroke: "none", background: "rgba(0, 0, 0, 0.72)" },
     fonts: [],
   },
 };

@@ -158,7 +158,7 @@ AI が JSON を直接書いて `gmm build scenes.json` としてもよい。
   "extends": "wakaba",
   "accent": "#e07a5f",
   "fontSize": 52,
-  "subtitle": { "stroke": "#5a2a1e" },
+  "subtitle": { "background": "rgba(90, 42, 30, 0.85)", "stroke": "none" },
   "fonts": [{ "family": "My Font", "src": "fonts/MyFont.woff2", "weight": 400 }],
   "fontFamily": "\"My Font\", \"Noto Sans JP\", sans-serif"
 }
