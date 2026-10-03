@@ -81,3 +81,36 @@ describe("checkFaces", () => {
     expect(checkFaces({ ...t, character: undefined } as Timeline)).toEqual([]);
   });
 });
+
+describe("checkTerms", () => {
+  const sent = (text: string, explains?: string[]) => ({ text, from: 0, durationInFrames: 30, mouth: [], ...(explains && { explains }) });
+  const scene = (id: string, heading: string, sentences: ReturnType<typeof sent>[], elements: unknown[] = []) =>
+    ({ id, heading, showHeading: true, start: 0, durationInFrames: 100, sentences, elements }) as unknown as ResolvedScene;
+  const timeline = (glossary: Record<string, string>, scenes: ResolvedScene[]) => ({ meta: { glossary }, scenes }) as unknown as Timeline;
+
+  it("説明のない用語はエラー、使われない用語は警告", async () => {
+    const { checkTerms } = await import("../src/inspect/rules");
+    const t = timeline({ ハッシュ値: "x", 未使用: "y" }, [scene("s01", "計算", [sent("ハッシュ値を計算する。")])]);
+    expect(checkTerms(t).map((i) => [i.severity, i.rule])).toEqual([
+      ["error", "term-unexplained"],
+      ["warn", "term-unexplained"],
+    ]);
+  });
+
+  it("同じシーンなら後の文で説明してよい。前のシーンで使っていたら警告。見出し・画面の文字も数える", async () => {
+    const { checkTerms } = await import("../src/inspect/rules");
+    const ok = timeline({ 用語: "x" }, [scene("s01", "a", [sent("用語を使う。"), sent("用語とは…", ["用語"])])]);
+    expect(checkTerms(ok)).toEqual([]);
+    const late = timeline({ 用語: "x" }, [scene("s01", "用語の話", [sent("始める。")]), scene("s02", "b", [sent("用語とは…", ["用語"])])]);
+    expect(checkTerms(late).map((i) => [i.severity, i.rule, i.sceneId])).toEqual([["warn", "term-before-explained", "s01"]]);
+  });
+
+  it("タイトルのシーンでの使用は数えない", async () => {
+    const { checkTerms } = await import("../src/inspect/rules");
+    const t = timeline({ 用語: "x" }, [
+      scene("s01", "表紙", [sent("今日は用語の話。")], [{ type: "title", title: "用語入門", from: 0 }]),
+      scene("s02", "b", [sent("用語とは…", ["用語"])]),
+    ]);
+    expect(checkTerms(t)).toEqual([]);
+  });
+});

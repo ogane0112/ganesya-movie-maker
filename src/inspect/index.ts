@@ -9,7 +9,7 @@ import { fileURLToPath } from "node:url";
 import { chromium, type Page } from "playwright-core";
 import { findBrowser } from "../browser.js";
 import type { ResolvedScene, Timeline } from "../schema.js";
-import { checkFaces, checkLayout, checkScene, checkSubtitle, type Issue } from "./rules.js";
+import { checkFaces, checkLayout, checkScene, checkSubtitle, checkTerms, type Issue } from "./rules.js";
 
 const here = dirname(fileURLToPath(import.meta.url));
 
@@ -99,7 +99,7 @@ export async function openInspector(timeline: Timeline, outDir: string): Promise
 const finalFrame = (s: ResolvedScene) => s.start + s.durationInFrames - 1;
 
 export async function runChecks(timeline: Timeline, outDir: string): Promise<Issue[]> {
-  const issues: Issue[] = checkFaces(timeline);
+  const issues: Issue[] = [...checkTerms(timeline), ...checkFaces(timeline)];
   const session = await openInspector(timeline, outDir);
   try {
     for (const scene of timeline.scenes) {

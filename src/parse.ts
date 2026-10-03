@@ -7,6 +7,7 @@
 //   {n}            n番目のナレーション文が始まるときに出す
 //   {face:smile}   文頭に書くと、その文から立ち絵の表情が変わる
 //   {表記|よみ}    字幕には表記、読み上げにはよみを使う（フロントマターの readings: で一括指定もできる）
+//   {term:用語}    文頭に書くと「この文で用語を説明している」という印（glossary: の用語の説明漏れを検査する）
 import { Element, SceneDoc, type Scene } from "./schema.js";
 
 export class ScriptError extends Error {
@@ -44,7 +45,7 @@ export function parseScript(source: string): SceneDoc {
 
   const flush = () => {
     if (!current) return;
-    const sentences = takeFaces(splitSentences(current.narration.join("\n")));
+    const sentences = takeSentenceMarkers(splitSentences(current.narration.join("\n")));
     const elements: Element[] = [];
     for (const { el, line } of current.elements) {
       const parsed = Element.safeParse(el);
@@ -107,6 +108,15 @@ export function parseScript(source: string): SceneDoc {
   flush();
 
   if (scenes.length === 0) problems.push("シーンがありません（## 見出し でシーンを始めてください）");
+  // 用語カードの説明は、カードに書くか glossary: に書く
+  const glossary = (meta.glossary ?? {}) as Record<string, string>;
+  for (const scene of scenes) {
+    for (const el of scene.elements) {
+      if (el.type === "term" && !el.description && !glossary[el.term]) {
+        problems.push(`シーン「${scene.heading}」: 用語カード「${el.term}」の説明がありません（カードの2行目か glossary: に書いてください）`);
+      }
+    }
+  }
   if (problems.length) throw new ScriptError(problems);
   return SceneDoc.parse({ version: 1, meta, scenes });
 }
@@ -130,21 +140,35 @@ export function splitSentences(text: string): string[] {
 /** {表記|よみ}: 字幕には表記を出し、読み上げはよみを使う */
 const READING = /\{([^{}|]+)\|([^{}]+)\}/g;
 
-/** 文頭の {face:表情} を取り出す。{face:x} だけの行は次の文に付ける */
-function takeFaces(sentences: string[]): { text: string; speech?: string; face?: string }[] {
-  const out: { text: string; speech?: string; face?: string }[] = [];
-  let pending: string | undefined;
+type Sentence = { text: string; speech?: string; face?: string; explains?: string[] };
+
+/**
+ * 文頭の {face:表情} と {term:用語} を取り出す（順不同・複数可）。
+ * 印だけの行は次の文に付ける。{term:用語} は「この文で用語を説明している」という印。
+ */
+function takeSentenceMarkers(sentences: string[]): Sentence[] {
+  const out: Sentence[] = [];
+  let pending: { face?: string; explains: string[] } = { explains: [] };
   for (const s of sentences) {
-    const m = s.match(/^\{face:([\w-]+)\}\s*/);
-    const raw = m ? s.slice(m[0].length) : s;
-    const face = m?.[1] ?? pending;
+    let raw = s;
+    let face = pending.face;
+    const explains = [...pending.explains];
+    for (let m; (m = raw.match(/^\{(face|term):([^{}]+)\}\s*/)); raw = raw.slice(m[0].length)) {
+      if (m[1] === "face") face = m[2].trim();
+      else explains.push(m[2].trim());
+    }
     if (!raw) {
-      pending = face;
+      pending = { face, explains };
       continue;
     }
-    pending = undefined;
+    pending = { explains: [] };
     const text = raw.replace(READING, "$1");
-    out.push({ text, ...(text !== raw && { speech: raw.replace(READING, "$2") }), ...(face && { face }) });
+    out.push({
+      text,
+      ...(text !== raw && { speech: raw.replace(READING, "$2") }),
+      ...(face && { face }),
+      ...(explains.length && { explains }),
+    });
   }
   return out;
 }
@@ -223,8 +247,13 @@ function buildElement(kind: string, args: BlockArgs, body: string[]): unknown {
     }
     case "diagram":
       return buildDiagram(args, body);
+    case "term": {
+      const lines = body.map((l) => l.trim()).filter(Boolean);
+      if (!lines.length) throw new Error(":::term の1行目に用語を書いてください（2行目に説明。省略すると glossary: の説明）");
+      return { type: "term", term: lines[0], description: lines.slice(1).join(" ") || undefined, at: args.at };
+    }
     default:
-      throw new Error(`未知の部品 :::${kind}（使えるのは title / bullets / code / text / callout / math / image / diagram）`);
+      throw new Error(`未知の部品 :::${kind}（使えるのは title / bullets / code / text / callout / math / image / diagram / term）`);
   }
 }
 

@@ -16,6 +16,7 @@ import { Code } from "./parts/Code";
 import { Diagram } from "./parts/Diagram";
 import { ImageView } from "./parts/Image";
 import { MathBlock } from "./parts/Math";
+import { TermCard } from "./parts/Term";
 import { Text } from "./parts/Text";
 import { Title } from "./parts/Title";
 
@@ -112,5 +113,7 @@ const ElementView: React.FC<{ el: ResolvedElement; theme: Theme }> = ({ el, them
       return <ImageView src={el.src} caption={el.caption} from={el.from} theme={theme} />;
     case "diagram":
       return <Diagram {...el} theme={theme} />;
+    case "term":
+      return <TermCard term={el.term} description={el.description} from={el.from} theme={theme} />;
   }
 };

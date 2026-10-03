@@ -57,6 +57,15 @@ export const ImageElement = z.object({
   at: At.optional(),
 });
 
+/** 用語カード。glossary の用語と説明を画面に出す。出す文（{n}）でその用語を説明したことになる */
+export const TermElement = z.object({
+  type: z.literal("term"),
+  term: z.string(),
+  /** 省略時は glossary の説明 */
+  description: z.string().optional(),
+  at: At.optional(),
+});
+
 const Arrow = z.enum(["->", "<-", "<->", "--"]);
 
 export const DiagramElement = z.object({
@@ -76,6 +85,7 @@ export const Element = z.discriminatedUnion("type", [
   MathElement,
   ImageElement,
   DiagramElement,
+  TermElement,
 ]);
 
 export const Scene = z.object({
@@ -91,6 +101,8 @@ export const Scene = z.object({
       speech: z.string().optional(),
       /** 立ち絵の表情。この文から切り替わり、次の指定まで続く */
       face: z.string().optional(),
+      /** この文で説明している用語（glossary の用語） */
+      explains: z.array(z.string()).optional(),
     }),
   ),
   elements: z.array(Element),
@@ -105,6 +117,8 @@ export const Meta = z.object({
   character: z.string().default("none"),
   /** 字幕。burn: 焼き込み＋SRT / srt: SRT だけ / none: なし */
   subtitles: z.enum(["burn", "srt", "none"]).default("burn"),
+  /** 専門用語の一覧（用語 → 一言の説明）。動画のどこかで必ず説明されているかを検査する */
+  glossary: z.record(z.string(), z.string()).default({}),
   /** 読みの辞書（表記 → よみ）。全文の読み上げに適用する */
   readings: z.record(z.string(), z.string()).default({}),
   /** BGM（台本からの相対パス）。ナレーション中は自動で音量を下げる */
@@ -135,6 +149,7 @@ export type TextElement = z.infer<typeof TextElement>;
 export type MathElement = z.infer<typeof MathElement>;
 export type ImageElement = z.infer<typeof ImageElement>;
 export type DiagramElement = z.infer<typeof DiagramElement>;
+export type TermElement = z.infer<typeof TermElement>;
 export type Element = z.infer<typeof Element>;
 export type Scene = z.infer<typeof Scene>;
 export type Meta = z.infer<typeof Meta>;
@@ -172,6 +187,7 @@ export type ResolvedElement =
   | (Omit<TextElement, "at"> & { from: number; html: string })
   | (Omit<ImageElement, "at"> & { from: number })
   | { type: "math"; from: number; tex: string; html: string }
+  | { type: "term"; from: number; term: string; description: string }
   | {
       type: "bullets";
       from: number;
@@ -200,6 +216,8 @@ export type ResolvedSentence = {
   from: number;
   durationInFrames: number;
   audio?: string;
+  /** この文で説明している用語（{term:…} と、この文で出る用語カード） */
+  explains?: string[];
   /** この文を話している間の表情（前の文から引き継いだものを含む） */
   face?: string;
   /** 口を開けている区間（シーン先頭からのフレーム） */

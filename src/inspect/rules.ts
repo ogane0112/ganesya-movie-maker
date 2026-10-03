@@ -172,6 +172,9 @@ export function checkScene(scene: ResolvedScene, timeline: Timeline): Issue[] {
         starts.push({ label: `図の箱「${n.text.slice(0, 15)}」`, from: n.from });
       });
       el.edges.forEach((e) => e && starts.push({ label: `図の矢印${e.label ? `「${e.label}」` : ""}`, from: e.from }));
+    } else if (el.type === "term") {
+      chars += [...el.term].length + [...el.description].length;
+      starts.push({ label: `用語カード「${el.term}」`, from: el.from });
     } else if (el.type === "math") {
       starts.push({ label: "数式", from: el.from });
     } else if (el.type === "image") {
@@ -227,6 +230,81 @@ export function checkFaces(t: Timeline): Issue[] {
     }
   }
   flush();
+  return issues;
+}
+
+type Pos = { scene: number; sentence: number };
+const before = (a: Pos, b: Pos) => a.scene < b.scene || (a.scene === b.scene && a.sentence < b.sentence);
+
+/** 画面に出る文字（コードと数式は除く）。用語が使われているかを調べるのに使う */
+function screenText(el: ResolvedScene["elements"][number]): string[] {
+  switch (el.type) {
+    case "title":
+      return [el.title, el.subtitle ?? ""];
+    case "bullets":
+      return el.items.map((i) => i.text);
+    case "text":
+      return [el.text];
+    case "diagram":
+      return [...el.nodes.map((n) => n.text), ...el.edges.map((e) => e?.label ?? "")];
+    case "image":
+      return [el.caption ?? ""];
+    default:
+      return [];
+  }
+}
+
+/**
+ * 専門用語（glossary）が、動画のどこかで説明されているか。
+ * 説明 = {term:用語} の付いた文か、用語カード。一度も説明していなければエラー。
+ * 説明より前のシーンで使っていたら警告（同じシーン内なら直後の説明でよい）。
+ * タイトルのシーン（:::title のあるシーン。表紙・エンディング）は、題名として用語を出すのが普通なので数えない。
+ */
+export function checkTerms(t: Timeline): Issue[] {
+  const issues: Issue[] = [];
+  const label = (p: Pos) => `${t.scenes[p.scene].id}「${t.scenes[p.scene].heading}」`;
+  for (const term of Object.keys(t.meta.glossary ?? {})) {
+    let firstUse: Pos | undefined;
+    let explained: Pos | undefined;
+    t.scenes.forEach((scene, si) => {
+      if (scene.elements.some((el) => el.type === "title")) return;
+      // 画面の文字は、出る文の位置で使われたとみなす
+      const shown = scene.elements.flatMap((el) => {
+        const from = "from" in el ? el.from : 0;
+        const idx = Math.max(0, scene.sentences.findLastIndex((s) => s.from <= from));
+        return screenText(el).filter((x) => x.includes(term)).map(() => idx);
+      });
+      // 見出しはシーンの最初から出ている
+      if (scene.showHeading && scene.heading.includes(term)) shown.push(0);
+      scene.sentences.forEach((s, j) => {
+        const pos = { scene: si, sentence: j };
+        if ((s.text.includes(term) || shown.includes(j)) && (!firstUse || before(pos, firstUse))) firstUse = pos;
+        if (s.explains?.includes(term) && !explained) explained = pos;
+      });
+    });
+    const id = (p: Pos | undefined) => (p ? t.scenes[p.scene].id : t.scenes[0]?.id ?? "");
+    if (!explained) {
+      issues.push({
+        severity: firstUse ? "error" : "warn",
+        sceneId: id(firstUse),
+        rule: "term-unexplained",
+        message: firstUse
+          ? `専門用語「${term}」が${label(firstUse)}から使われていますが、説明している文がありません`
+          : `glossary の用語「${term}」が動画の中で使われていません`,
+        hint: firstUse
+          ? `最初に使う所で説明する文を足し、文頭に {term:${term}} を付けてください（:::term ${term} の用語カードでもよい）`
+          : "使わないなら glossary: から外してください",
+      });
+    } else if (firstUse && firstUse.scene < explained.scene) {
+      issues.push({
+        severity: "warn",
+        sceneId: t.scenes[firstUse.scene].id,
+        rule: "term-before-explained",
+        message: `専門用語「${term}」が${label(firstUse)}で使われていますが、説明は後の${label(explained)}です`,
+        hint: "説明を最初に使うシーンへ移すか、最初に使うシーンで一言説明してください",
+      });
+    }
+  }
   return issues;
 }
 

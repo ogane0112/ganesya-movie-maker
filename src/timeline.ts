@@ -42,13 +42,18 @@ export async function buildTimeline(
       cursor = from + durationInFrames;
       face = scene.sentences[i].face ?? face; // 表情は次の指定まで続く
       const mouth = c.mouth.map(([a, b]): [number, number] => [from + Math.round(a * fps), from + Math.max(Math.round(b * fps), Math.round(a * fps) + 1)]);
-      return { text: c.text, from, durationInFrames, audio: c.file, face, mouth };
+      const explains = [
+        ...(scene.sentences[i].explains ?? []),
+        // 用語カードは、出る文（省略時は1文目）でその用語を説明したことにする
+        ...scene.elements.filter((e) => e.type === "term" && (e.at ?? 1) === i + 1).map((e) => (e as { term: string }).term),
+      ];
+      return { text: c.text, from, durationInFrames, audio: c.file, face, mouth, ...(explains.length && { explains }) };
     });
     const durationInFrames = cursor + sec(PACING.tail);
     const at = (n: number | undefined) => (n === undefined ? 0 : sentences[n - 1].from);
 
     const elements: ResolvedElement[] = [];
-    for (const el of scene.elements) elements.push(await resolveElement(el, at, theme.codeTheme));
+    for (const el of scene.elements) elements.push(await resolveElement(el, at, theme.codeTheme, doc.meta.glossary));
 
     scenes.push({
       id: scene.id,
@@ -68,6 +73,7 @@ async function resolveElement(
   el: Element,
   at: (n: number | undefined) => number,
   codeTheme: string,
+  glossary: Record<string, string>,
 ): Promise<ResolvedElement> {
   switch (el.type) {
     case "bullets": {
@@ -99,6 +105,8 @@ async function resolveElement(
       return { type: "text", text: el.text, html: richText(el.text), variant: el.variant, from: at(el.at) };
     case "math":
       return { type: "math", tex: el.tex, html: tex(el.tex, true), from: at(el.at) };
+    case "term":
+      return { type: "term", term: el.term, description: el.description ?? glossary[el.term] ?? "", from: at(el.at) };
     case "image":
       return { type: "image", src: el.src, caption: el.caption, from: at(el.at) };
     case "diagram": {

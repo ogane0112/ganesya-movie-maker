@@ -165,3 +165,40 @@ describe("図解・数式・画像", () => {
     expect(() => parseScript("## A\n\n一。\n\n:::image\n:::\n")).toThrow('src="画像のパス"');
   });
 });
+
+describe("専門用語", () => {
+  it("{term:用語} と {face:表情} を順不同で取り出し、glossary: と :::term を読む", () => {
+    const d = parseScript(`---
+glossary:
+  シャーディング: 値を複数のキーに分けること
+---
+## A
+
+{term:シャーディング}{face:think}これがシャーディングなのだ。
+{face:smile}
+{term:A}{term:B}二つ説明するのだ。
+
+:::term {2}
+シャーディング
+:::
+
+:::term
+独自語
+ここに説明
+:::
+`);
+    expect(d.meta.glossary).toEqual({ シャーディング: "値を複数のキーに分けること" });
+    expect(d.scenes[0].sentences).toEqual([
+      { text: "これがシャーディングなのだ。", face: "think", explains: ["シャーディング"] },
+      { text: "二つ説明するのだ。", face: "smile", explains: ["A", "B"] },
+    ]);
+    expect(d.scenes[0].elements).toEqual([
+      { type: "term", term: "シャーディング", at: 2 },
+      { type: "term", term: "独自語", description: "ここに説明" },
+    ]);
+  });
+
+  it("説明のない用語カードはエラー", () => {
+    expect(() => parseScript("## A\n\n文。\n\n:::term\n未定義\n:::\n")).toThrow("用語カード「未定義」の説明がありません");
+  });
+});

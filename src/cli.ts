@@ -6,8 +6,15 @@ import { captureFrames, runChecks } from "./inspect/index.js";
 import { formatIssues } from "./inspect/rules.js";
 import { ScriptError } from "./parse.js";
 import { importPsd } from "./psd.js";
-import { prepare, type PipelineOptions } from "./pipeline.js";
+import { findTermCandidates } from "./terms.js";
+import { loadSceneDoc, prepare, type PipelineOptions } from "./pipeline.js";
 import { preview, renderVideo } from "./render.js";
+
+// head などに渡して途中で閉じられても落ちないようにする
+process.stdout.on("error", (e: NodeJS.ErrnoException) => {
+  if (e.code === "EPIPE") process.exit(0);
+  throw e;
+});
 
 // 進行状況は stderr、結果は stdout に出す（エージェントが stdout だけ読めばよいように）
 const log = (msg: string) => process.stderr.write(`[gmm] ${msg}\n`);
@@ -98,6 +105,20 @@ withCommon(program.command("build").description("検査 → キーフレーム �
       await renderVideo(timeline, outDir, output, log);
       console.log(`動画: ${output}`);
     }
+  });
+
+program
+  .command("terms")
+  .description("専門用語の候補（カタカナ語・英字の語）を一覧する。glossary: に入れる用語を選ぶ手がかり")
+  .argument("<input>", "台本(.md) または シーン定義JSON(.json)")
+  .action(async (input) => {
+    const doc = await loadSceneDoc(input);
+    console.log("回数\t初出\tglossary\t説明\t語");
+    for (const c of findTermCandidates(doc)) {
+      console.log(`${c.count}\t${c.firstScene}\t${c.inGlossary ? "○" : "-"}\t${c.explained ? "○" : "-"}\t${c.word}`);
+    }
+    const missing = Object.keys(doc.meta.glossary).filter((t) => !findTermCandidates(doc).some((c) => c.word === t));
+    if (missing.length) console.log(`\n（glossary にあるが上に出ない語: ${missing.join("、")}。漢字を含む語は gmm check で確かめてください）`);
   });
 
 program
