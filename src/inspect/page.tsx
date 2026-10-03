@@ -56,7 +56,10 @@ function measure(): Measurement {
       text: (el.textContent ?? "").slice(0, 40),
       fontSize: parseFloat(getComputedStyle(el).fontSize),
       rect: rect(el),
-      clipped: el.hasAttribute("data-gmm-clip") && el.scrollWidth > el.clientWidth + 1,
+      clipped:
+        (el.hasAttribute("data-gmm-clip") && el.scrollWidth > el.clientWidth + 1) ||
+        // data-gmm-clip-y: 親の箱の下端から出ていないか（縦に切れる欄）
+        (el.hasAttribute("data-gmm-clip-y") && !!el.parentElement && el.getBoundingClientRect().bottom > el.parentElement.getBoundingClientRect().bottom + 1),
     })),
   };
 }

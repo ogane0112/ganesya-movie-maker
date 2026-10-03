@@ -114,4 +114,24 @@ speakers:
     const au: AudioTiming = { provider: "silent", voice: "z", sentences: [{ sceneId: "s01", index: 0, text: "文。", file: "a", seconds: 1, mouth: [] }] };
     expect(() => buildBiimTimeline(bad, au, THEMES.wakaba, [], { src: "v", width: 1, height: 1, duration: 60 })).toThrow("!cut の区間の中です");
   });
+
+  it("小ネタ（!note）は次の発言から出て、次のシーンに引き継ぐ", () => {
+    const d = parseBiimScript(`---\nlayout: biim\nvideo: v.mp4\nrunStart: 0\nrunEnd: 50\n---\n## A @0:00\n@0:00\n!note ネタ1\n一。\n## B @0:20\n@0:20\n二。\n!note\n三。\n`);
+    expect(d.scenes[0].sentences[0].note).toBe("ネタ1");
+    expect(d.scenes[1].sentences[1].note).toBe("");
+    const au: AudioTiming = {
+      provider: "silent",
+      voice: "z",
+      sentences: [
+        { sceneId: "s01", index: 0, text: "一。", file: "a", seconds: 1, mouth: [] },
+        { sceneId: "s02", index: 0, text: "二。", file: "b", seconds: 1, mouth: [] },
+        { sceneId: "s02", index: 1, text: "三。", file: "c", seconds: 1, mouth: [] },
+      ],
+    };
+    const tl = buildBiimTimeline(d, au, THEMES.wakaba, [], { src: "v", width: 1, height: 1, duration: 60 });
+    expect(tl.scenes[0].notes).toEqual([{ from: 9, text: "ネタ1" }]);
+    expect(tl.scenes[1].notes?.[0]).toEqual({ from: 0, text: "ネタ1" });
+    expect(tl.scenes[1].notes?.[1].text).toBe("");
+    expect(() => parseBiimScript(`---\nlayout: biim\nvideo: v.mp4\nrunStart: 0\nrunEnd: 50\n---\n## A @0:00\n@0:00\n一。\n!note 宙ぶらりん\n`)).toThrow("!note の後に発言がありません");
+  });
 });

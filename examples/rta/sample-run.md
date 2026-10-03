@@ -5,7 +5,7 @@ video: sample-run.mp4          # examples/rta/make-sample-run.sh で作る仮の
 runStart: 0:06                 # STAGE 1-1 が始まった時刻
 runEnd: 2:20                   # STAGE CLEAR が出た時刻
 category: Any%
-biimFrame: overlay              # overlay（ゲーム全面に二人が乗る）/ stage（上にゲーム、下で二人）/ classic / simple
+biimFrame: overlay             # overlay（左にゲーム・右にタイマーと小ネタ）/ stage / classic / simple
 se: none
 speakers:                      # 1人目は左、2人目は右に立つ
   めたん: metan
@@ -35,6 +35,7 @@ readings:
 @0:06
 ずんだもん: {face:normal}{term:RTA}RTAは、クリアまでの実際の時間を競う遊び方なのだ。
 めたん: {term:Any%}ルールはAny%。どんな方法でもいいから、最速でクリアすればいいのよ。
+!note 計測は 1-1 の開始から、STAGE CLEAR の表示まで
 ずんだもん: タイマーは、1-1が始まったところから計っているのだ。
 @0:26
 めたん: 黄色い四角が、ずんだもんの動かすキャラね。
@@ -48,10 +49,12 @@ readings:
 ## 1-2 @0:54
 @0:54
 ずんだもん: {term:ロード}次の場面を読み込む待ち時間、ロードはカットしたのだ。
+!note ロードは動画ではカットしていますが、実時間の計測なのでタイムには入っています
 めたん: タイマーは実際の時間だから、ロードの分も進んでいるわ。
 @1:03
 めたん: 1-2は夕方のステージね。
 @1:05
+!note 倍速の間はゲーム音を消しています
 ずんだもん: ここからは倍速でお送りするのだ。
 @1:31
 めたん: 倍速はここまでよ。
@@ -59,6 +62,7 @@ readings:
 
 ## ボス @1:44
 @1:44
+!note -
 ずんだもん: {face:surprised}ボスなのだ！
 めたん: 紫の大きなブロックが、小刻みに揺れているわね。
 @1:56

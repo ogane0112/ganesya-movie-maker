@@ -6,6 +6,7 @@
 //   @0:00                   ここから下の発言を、録画のこの時刻に始める
 //   ずんだもん: 発言         話者: 発言（話者は speakers: の名前。省略すると直前の話者）
 //   ## 1-1 @0:06            区間（スプリット）。録画のこの時刻から始まる
+//   !note 小ネタ            次の発言から、右の欄に小ネタを出す（次の !note まで。!note だけで消す）
 //
 // 発言は前の発言が終わるまで待つので、@ の時刻より遅れることがある（遅れすぎは gmm check が知らせる）。
 import { parseFrontMatter, ScriptError, splitSentences, takeSentenceMarkers } from "../parse.js";
@@ -42,6 +43,7 @@ export function parseBiimScript(source: string): SceneDoc {
   let anchor: number | undefined;
   let lastAnchor = -Infinity;
   let speaker: string | undefined;
+  let note: { text: string; line: number } | undefined;
 
   const flush = () => {
     const { line: _, ...s } = scene;
@@ -57,7 +59,11 @@ export function parseBiimScript(source: string): SceneDoc {
     if (!line || /^<!--.*-->$/.test(line)) continue;
     try {
       let m: RegExpMatchArray | null;
-      if ((m = line.match(new RegExp(String.raw`^!(cut|fast)\s+(${TIME})\s*-\s*(${TIME})(?:\s+x(\d+(?:\.\d+)?))?$`)))) {
+      if ((m = line.match(/^!note(?:\s+(.*))?$/))) {
+        if (note) throw new Error(`${note.line}行目の !note の後に発言がありません（!note は次の発言から出ます）`);
+        const text = (m[1] ?? "").trim();
+        note = { text: text === "-" ? "" : text, line: no };
+      } else if ((m = line.match(new RegExp(String.raw`^!(cut|fast)\s+(${TIME})\s*-\s*(${TIME})(?:\s+x(\d+(?:\.\d+)?))?$`)))) {
         const e: Edit = { type: m[1] as Edit["type"], from: parseTime(m[2]), to: parseTime(m[3]), rate: m[1] === "fast" ? Number(m[4] ?? 2) : 1 };
         if (e.to <= e.from) throw new Error(`!${e.type} の終わりが始まりより前です`);
         if (e.type === "fast" && e.rate <= 1) throw new Error("!fast の倍率は 1 より大きくしてください（例: x4）");
@@ -75,7 +81,7 @@ export function parseBiimScript(source: string): SceneDoc {
         if (anchor < lastAnchor) throw new Error(`@${m[1]} が前の @ より前の時刻です（実況は時刻順に書いてください）`);
         lastAnchor = anchor;
       } else if (line.startsWith("!") || line.startsWith(":::")) {
-        throw new Error(`ゲーム実況の台本では使えない行です: ${line}（使えるのは !cut / !fast / @時刻 / ## 区間 @時刻 / 話者: 発言）`);
+        throw new Error(`ゲーム実況の台本では使えない行です: ${line}（使えるのは !cut / !fast / !note / @時刻 / ## 区間 @時刻 / 話者: 発言）`);
       } else {
         const said = line.match(/^([^:：\s]{1,20})\s*[:：]\s*(.+)$/);
         let text = line;
@@ -89,8 +95,14 @@ export function parseBiimScript(source: string): SceneDoc {
           throw new Error("最初の発言の前に、録画の時刻を @0:00 のように書いてください");
         }
         takeSentenceMarkers(splitSentences(text)).forEach((s, k) => {
-          scene.sentences.push({ ...s, ...(speaker && { speaker }), ...(k === 0 && anchor !== undefined && { at: anchor }) });
+          scene.sentences.push({
+            ...s,
+            ...(speaker && { speaker }),
+            ...(k === 0 && anchor !== undefined && { at: anchor }),
+            ...(k === 0 && note && { note: note.text }),
+          });
         });
+        note = undefined;
         anchor = undefined; // 同じ @ の続きの発言は、前の発言が終わってから
       }
     } catch (e) {
@@ -98,6 +110,7 @@ export function parseBiimScript(source: string): SceneDoc {
     }
   }
   flush();
+  if (note) problems.push(`${note.line}行目: !note の後に発言がありません（!note は次の発言から出ます）`);
 
   if (!scenes.some((s) => s.splitAt !== undefined)) problems.push("区間がありません（## 1-1 @0:06 のように書いてください）");
   if (!meta.video) problems.push("フロントマターに video:（録画ファイル）を書いてください");

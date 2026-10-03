@@ -361,36 +361,37 @@ const CircleFace: React.FC<{ member: CastMember; scene: ResolvedScene; timeline:
 };
 
 // ---- 掛け合いの画面（biimFrame: overlay / stage） ----
-// 左に1人目、右に2人目の話者を、向かい合わせて置く。overlay はゲームを全面に出して話者を上に重ね、
-// stage は上にゲーム、下の段で話者が向かい合う。字幕は二人の間、タイマーは右上。
+// 左に1人目、右に2人目の話者を、向かい合わせて置く。overlay はゲームを左上に大きく出して話者を上に重ね、
+// 右の列にタイマーと小ネタ（!note）を置く。stage は上にゲーム、下の段で話者が向かい合う。字幕は二人の間。
 export const DUO = {
   /** 話者の見せ方：表示範囲の上からの割合と、画面上の高さ */
-  figure: { ratio: 0.62, height: { overlay: 520, stage: 440 } },
+  figure: { ratio: 0.62, height: { overlay: 400, stage: 440 } },
+  overlay: { game: { x: 0, y: 0, width: 1500, height: 844 }, column: { x: 1516, y: 16, width: 388, bottom: 690 } }, // bottom: 列の下端（右の話者の頭の上）
   stage: { game: { x: 320, y: 16, width: 1280, height: 720 } },
   /** 字幕の箱（二人の間） */
-  subtitle: { overlay: { x: 520, width: 880, bottom: 28 }, stage: { x: 470, width: 980, bottom: 24 } },
-  timer: { width: 440, margin: 24 },
+  subtitle: { overlay: { x: 430, width: 1060, bottom: 24 }, stage: { x: 470, width: 980, bottom: 24 } },
 };
 
 const DuoScene: React.FC<{ scene: ResolvedScene; timeline: Timeline; withAudio: boolean }> = ({ scene, timeline, withAudio }) => {
   const frame = useCurrentFrame();
   const run = timeline.run!;
   const mode = run.frame === "stage" ? "stage" : "overlay";
-  const { width: W, height: H } = timeline.meta;
+  const { height: H } = timeline.meta;
   const { showing, speaking } = currentLine(scene, frame);
   const cast = timeline.cast ?? [];
   const member = cast.find((c) => c.name === showing?.speaker);
   const sub = timeline.theme.subtitle;
   const sb = DUO.subtitle[mode];
-  const game = mode === "stage" ? DUO.stage.game : { x: 0, y: 0, width: W, height: H };
+  // overlay はゲームを左上に寄せる（録画が 16:9 より細ければ、その分だけ幅を詰める）
+  const game = mode === "overlay" ? fitLeft(DUO.overlay.game, run.width / run.height) : DUO.stage.game;
   return (
-    <div data-gmm-scene={scene.id} style={{ position: "absolute", inset: 0, background: mode === "stage" ? C.bg : "#000", color: C.text }}>
+    <div data-gmm-scene={scene.id} style={{ position: "absolute", inset: 0, background: C.bg, color: C.text }}>
       {/* overlay ではゲームは背景（話者や字幕を上に重ねる前提なので、重なりの検査から外す） */}
       <div data-gmm-el={mode === "overlay" ? "backdrop" : "game"} style={{ position: "absolute", ...pos(game), background: "#000", overflow: "hidden", borderRadius: mode === "stage" ? 8 : 0 }}>
         <Footage scene={scene} timeline={timeline} withAudio={withAudio} frame={frame} />
       </div>
 
-      {mode === "stage" ? <StagePanels scene={scene} timeline={timeline} frame={frame} /> : <TimerCard scene={scene} timeline={timeline} frame={frame} />}
+      {mode === "stage" ? <StagePanels scene={scene} timeline={timeline} frame={frame} /> : <SideColumn scene={scene} timeline={timeline} frame={frame} />}
 
       {/* 話者：1人目は左で右を向き、2人目は右で左を向く */}
       {cast.slice(0, 2).map((m, i) =>
@@ -485,49 +486,46 @@ const Figure: React.FC<{
   );
 };
 
-/** overlay の右上：題名・いまの区間・タイマー・終えた区間のタイム */
-const TimerCard: React.FC<{ scene: ResolvedScene; timeline: Timeline; frame: number }> = ({ scene, timeline, frame }) => {
+/** overlay の右の列：上にタイマー（題名・いまの区間・終えた区間のタイム）、その下に小ネタ */
+const SideColumn: React.FC<{ scene: ResolvedScene; timeline: Timeline; frame: number }> = ({ scene, timeline, frame }) => {
   const run = timeline.run!;
-  const { fps, width: W } = timeline.meta;
+  const { fps } = timeline.meta;
   const runTime = runTimeAt((scene.globalStart ?? scene.start) + frame, run, fps);
   const cur = currentSplit(runTime, run);
   const font = timeline.theme.codeFontFamily;
-  const { width, margin } = DUO.timer;
+  const col = DUO.overlay.column;
   const done = run.splits.slice(0, Math.min(cur, run.splits.length)).slice(-3);
+  const note = [...(scene.notes ?? [])].reverse().find((n) => n.from <= frame);
+  const card: React.CSSProperties = { boxSizing: "border-box", padding: "14px 20px 16px", borderRadius: 14, background: C.panel, border: `2px solid ${C.line}` };
   return (
-    <div
-      data-gmm-el="panel"
-      style={{
-        position: "absolute",
-        left: W - width - margin,
-        top: margin,
-        width,
-        boxSizing: "border-box",
-        padding: "14px 22px 16px",
-        borderRadius: 14,
-        background: "rgba(12, 16, 20, 0.72)",
-        display: "flex",
-        flexDirection: "column",
-        gap: 4,
-      }}
-    >
-      <div data-gmm-text style={{ fontSize: 28, color: C.sub, lineHeight: 1.3 }}>
-        {timeline.meta.title}
-      </div>
-      <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 12 }}>
-        <span data-gmm-text style={{ fontSize: 28, fontWeight: 700 }}>
-          {cur < run.splits.length ? run.splits[cur].name : "FINISH"}
-        </span>
-        <span data-gmm-text style={{ fontFamily: font, fontSize: 54, fontWeight: 700, color: cur >= run.splits.length ? C.done : C.text, fontVariantNumeric: "tabular-nums" }}>
-          {formatRunTime(runTime)}
-        </span>
-      </div>
-      {done.map((s) => (
-        <div key={s.name} style={{ display: "flex", justifyContent: "space-between", fontSize: 28, color: C.sub }}>
-          <span data-gmm-text>{s.name}</span>
-          <span style={{ fontFamily: font, color: C.done }}>{formatRunTime(s.endRunTime)}</span>
+    <div style={{ position: "absolute", left: col.x, top: col.y, width: col.width, height: col.bottom - col.y, display: "flex", flexDirection: "column", gap: 16 }}>
+      <div data-gmm-el="panel" style={{ ...card, display: "flex", flexDirection: "column", gap: 4 }}>
+        <div data-gmm-text style={{ fontSize: 28, color: C.sub, lineHeight: 1.3 }}>
+          {timeline.meta.title}
         </div>
-      ))}
+        <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 12 }}>
+          <span data-gmm-text style={{ fontSize: 28, fontWeight: 700 }}>
+            {cur < run.splits.length ? run.splits[cur].name : "FINISH"}
+          </span>
+          <span data-gmm-text style={{ fontFamily: font, fontSize: 52, fontWeight: 700, color: cur >= run.splits.length ? C.done : C.text, fontVariantNumeric: "tabular-nums" }}>
+            {formatRunTime(runTime)}
+          </span>
+        </div>
+        {done.map((s) => (
+          <div key={s.name} style={{ display: "flex", justifyContent: "space-between", fontSize: 28, color: C.sub }}>
+            <span data-gmm-text>{s.name}</span>
+            <span style={{ fontFamily: font, color: C.done }}>{formatRunTime(s.endRunTime)}</span>
+          </div>
+        ))}
+      </div>
+      {note?.text && (
+        <div data-gmm-el="note" style={{ ...card, flex: 1, minHeight: 0, overflow: "hidden", display: "flex", flexDirection: "column", gap: 10 }}>
+          <div style={{ alignSelf: "flex-start", fontSize: 28, fontWeight: 700, color: "#fff", background: timeline.theme.accent, padding: "0 14px", borderRadius: 8 }}>小ネタ</div>
+          <div data-gmm-text data-gmm-clip-y style={{ fontSize: 30, lineHeight: 1.5, wordBreak: "auto-phrase" as React.CSSProperties["wordBreak"] }}>
+            {note.text}
+          </div>
+        </div>
+      )}
     </div>
   );
 };
@@ -593,3 +591,10 @@ const SplitsCompact: React.FC<{ run: RunInfo; cur: number; font: string; accent:
     </div>
   );
 };
+
+/** 箱の高さに合わせて録画の縦横比で幅を決め、左上に寄せる（箱より広くはしない） */
+function fitLeft(box: { x: number; y: number; width: number; height: number }, aspect: number) {
+  const width = Math.min(box.width, Math.round(box.height * aspect));
+  const height = Math.round(width / aspect);
+  return { x: box.x, y: box.y, width, height };
+}

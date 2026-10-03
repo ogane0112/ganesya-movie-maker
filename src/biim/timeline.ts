@@ -87,7 +87,7 @@ export function buildBiimTimeline(
   const total = map.reduce((n, s) => n + s.durationInFrames, 0);
 
   // 発言を待ち行列で並べる（動画全体のフレーム）
-  type Placed = ResolvedSentence & { sceneIndex: number; start: number };
+  type Placed = ResolvedSentence & { sceneIndex: number; start: number; note?: string };
   const placed: Placed[] = [];
   let cursor = sec(BIIM_PACING.lead) - sec(BIIM_PACING.gap);
   const faceOf: Record<string, string | undefined> = {};
@@ -118,6 +118,7 @@ export function buildBiimTimeline(
         mouth: c.mouth.map(([a, b]): [number, number] => [start + Math.round(a * fps), start + Math.max(Math.round(b * fps), Math.round(a * fps) + 1)]),
         anchor,
         explains: s.explains,
+        ...(s.note !== undefined && { note: s.note }),
       });
     });
   });
@@ -147,17 +148,25 @@ export function buildBiimTimeline(
     // このシーンで始まる発言と、前のシーンから続いている発言（字幕だけ）
     const sentences: ResolvedSentence[] = placed
       .filter((p) => (p.start >= start && p.start < end) || (p.start < start && p.start + p.durationInFrames > start))
-      .map(({ sceneIndex: _, start: s0, ...p }) => ({
+      .map(({ sceneIndex: _, start: s0, note: _n, ...p }) => ({
         ...p,
         from: rel(p.from),
         mouth: p.mouth.map(([a, b]) => [rel(a), rel(b)] as [number, number]),
         ...(p.anchor !== undefined && { anchor: rel(p.anchor) }),
         ...(s0 < start && { carry: true, audio: undefined }),
       }));
+    // 小ネタ：シーンの頭で出ているもの（前から続くもの）と、このシーンで変わるもの
+    const withNote = placed.filter((p) => p.note !== undefined);
+    const before = withNote.filter((p) => p.start < start).at(-1);
+    const notes = [
+      ...(before?.note ? [{ from: 0, text: before.note }] : []),
+      ...withNote.filter((p) => p.start >= start && p.start < end).map((p) => ({ from: rel(p.start), text: p.note! })),
+    ];
     return {
       id: scene.id,
       heading: scene.heading,
       showHeading: false,
+      ...(notes.length && { notes }),
       start,
       globalStart: start,
       durationInFrames: end - start,

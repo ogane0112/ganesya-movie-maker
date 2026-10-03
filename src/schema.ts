@@ -107,6 +107,8 @@ export const Scene = z.object({
       speaker: z.string().optional(),
       /** ゲーム実況: この発言を始めたい録画の時刻（秒） */
       at: z.number().optional(),
+      /** ゲーム実況: この発言から右の欄に出す小ネタ（空文字で消す） */
+      note: z.string().optional(),
     }),
   ),
   /** ゲーム実況: この区間（スプリット）が始まる録画の時刻（秒）。区間でないシーン（計測前）は省略 */
@@ -277,6 +279,8 @@ export type ResolvedScene = {
   globalStart?: number;
   /** ゲーム実況: このシーンで流す録画の区間（フレームはシーン先頭から） */
   footage?: FootageSegment[];
+  /** ゲーム実況: 右の欄の小ネタ。from（シーン先頭から）以降、次の指定まで出す。空文字は消す */
+  notes?: { from: number; text: string }[];
   heading: string;
   showHeading: boolean;
   /** 動画全体での開始フレーム */

@@ -11,7 +11,7 @@ category: Any%
 gameVolume: 0.5                # ゲーム音（実況中は自動で下げる。音量は自動でそろう）
 bgm: maou:piano38              # 任意。gmm bgm list
 se: none                       # 区間の切り替わりの効果音（default / none）
-biimFrame: overlay             # 画面（overlay: ゲーム全面に二人 / stage: 上にゲーム・下に二人 / classic: おなじみの枠 / simple）
+biimFrame: overlay             # 画面（overlay: 左にゲーム・右にタイマーと小ネタ / stage: 上にゲーム・下に二人 / classic: おなじみの枠 / simple）
 # frameImage: frame.png        # classic のとき任意。枠を画像で差し替える（1920×1080 透過 PNG）
 speakers:                      # 話者の名前: VOICEVOX の声（書いた順に左・右に立つ）
   めたん: metan
@@ -32,6 +32,7 @@ glossary:
 
 ## 1-1 @0:06                   # 区間（スプリット）。録画のこの時刻から
 @0:10
+!note 計測は 1-1 の開始から、STAGE CLEAR の表示まで   # 小ネタ：次の発言から右の欄に出る
 ずんだもん: 最初のステージは、ひたすら右に走るのだ。
 めたん: {face:think}障害物はジャンプで越えるのね。
 <!-- 要確認: ここで使っている技の正式な名前 -->
@@ -42,4 +43,5 @@ glossary:
 - 発言は前の発言が終わるまで待つ。`@` より 3 秒以上遅れると `gmm check` が `lag` で知らせる
 - 文頭の印は解説動画と同じ：`{face:表情}` `{term:用語}` `{表記|よみ}`
 - `!cut` の中に `@` や区間の開始を置くとエラー
+- `!note 本文` は次の発言から、次の `!note` まで右の欄に出る（`!note` だけで消す。60 文字以内。overlay の画面のみ）
 - 区間の最後の時刻（`runEnd`）を過ぎた後も、録画が続く限り実況を入れてよい（エンディング）

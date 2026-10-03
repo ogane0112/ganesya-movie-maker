@@ -40,6 +40,8 @@ export const LIMITS = {
   minSceneSec: 2.5,
   /** 1文の長さの上限（秒）。長すぎる文は聞き取りにくく、画面も変化しない */
   maxSentenceSec: 12,
+  /** ゲーム実況の小ネタ（!note）の文字数の上限。右の欄に収まる量 */
+  maxNoteChars: 60,
 };
 
 /** 上に部品を重ねてよい背景の部品（data-gmm-el="backdrop"） */
@@ -232,6 +234,17 @@ export function checkBiimScene(scene: ResolvedScene, timeline: Timeline, isLast:
         rule: "past-end",
         message: `${label}: 「${short}」が録画の終わりを越えます`,
         hint: "終わりの発言を減らすか短くしてください",
+      });
+    }
+  }
+  for (const n of scene.notes ?? []) {
+    if (n.from > 0 && [...n.text].length > LIMITS.maxNoteChars) {
+      issues.push({
+        severity: "warn",
+        sceneId: scene.id,
+        rule: "note-long",
+        message: `${label}: 小ネタ「${n.text.slice(0, 18)}…」が長すぎます（${[...n.text].length}文字 > ${LIMITS.maxNoteChars}文字）`,
+        hint: "要点だけに縮めるか、!note を2つに分けてください（右の欄に収まりません）",
       });
     }
   }
