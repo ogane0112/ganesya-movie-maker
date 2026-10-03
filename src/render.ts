@@ -60,6 +60,48 @@ export async function renderVideo(
 ): Promise<void> {
   const segDir = join(outDir, ".segments");
   await mkdir(segDir, { recursive: true });
+  const unlock = await lock(join(segDir, ".lock"));
+  try {
+    await renderSegments(timeline, outDir, segDir, output, log, opts);
+  } finally {
+    await unlock();
+  }
+}
+
+/**
+ * 同じ出力先への書き出しを1つに限る。別の書き出しが古いシーンの映像を消してしまうのを防ぐ。
+ * ロックを持つプロセスがもういなければ、残ったロックは無視する。
+ */
+async function lock(file: string): Promise<() => Promise<void>> {
+  try {
+    const pid = Number(await readFile(file, "utf8"));
+    if (pid && pid !== process.pid && isAlive(pid)) {
+      throw new Error(`この出力先は別の gmm render（pid ${pid}）が書き出し中です。終わるのを待つか、そのプロセスを止めてください`);
+    }
+  } catch (e) {
+    if ((e as NodeJS.ErrnoException).code !== "ENOENT") throw e;
+  }
+  await writeFile(file, String(process.pid));
+  return () => rm(file, { force: true });
+}
+
+function isAlive(pid: number): boolean {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function renderSegments(
+  timeline: Timeline,
+  outDir: string,
+  segDir: string,
+  output: string,
+  log: (msg: string) => void,
+  opts: { cache?: boolean },
+): Promise<void> {
   const base = await renderInputsHash(outDir);
   const segments = timeline.scenes.map((_, i) => {
     const t = sceneTimeline(timeline, i);

@@ -14,6 +14,8 @@ export type TtsOptions = {
   provider: TtsProvider;
   voicevoxUrl: string;
   log?: (msg: string) => void;
+  /** 本番の書き出し用。auto で VOICEVOX に繋がらないとき、無音で進めずにエラーにする */
+  requireVoice?: boolean;
 };
 
 export async function synthesizeAll(doc: SceneDoc, outDir: string, opts: TtsOptions): Promise<AudioTiming> {
@@ -21,6 +23,11 @@ export async function synthesizeAll(doc: SceneDoc, outDir: string, opts: TtsOpti
   let provider = opts.provider;
   if (provider === "auto") {
     provider = (await voicevoxAvailable(opts.voicevoxUrl)) ? "voicevox" : "silent";
+    if (provider === "silent" && opts.requireVoice) {
+      throw new Error(
+        `VOICEVOX（${opts.voicevoxUrl}）に接続できません。エンジンを起動してからやり直してください（無音のまま書き出すなら --tts silent）`,
+      );
+    }
     if (provider === "silent") {
       log(`VOICEVOX（${opts.voicevoxUrl}）に接続できないため、無音の仮音声（長さは文字数から推定）で進めます`);
     }

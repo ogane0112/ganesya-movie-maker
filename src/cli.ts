@@ -27,10 +27,16 @@ function withCommon(cmd: Command): Command {
     .option("--voicevox-url <url>", "VOICEVOX エンジンのURL", process.env.VOICEVOX_URL ?? "http://127.0.0.1:50021");
 }
 
-const pipelineOpts = (o: Common): PipelineOptions => ({ out: o.out, tts: o.tts, voicevoxUrl: o.voicevoxUrl, log });
+const pipelineOpts = (o: Common, requireVoice = false): PipelineOptions => ({
+  out: o.out,
+  tts: o.tts,
+  voicevoxUrl: o.voicevoxUrl,
+  log,
+  requireVoice,
+});
 
-async function check(input: string, o: Common & { json?: boolean }) {
-  const { timeline, outDir } = await prepare(input, pipelineOpts(o));
+async function check(input: string, o: Common & { json?: boolean }, requireVoice = false) {
+  const { timeline, outDir } = await prepare(input, pipelineOpts(o, requireVoice));
   const issues = await runChecks(timeline, outDir);
   await writeFile(join(outDir, "check.json"), JSON.stringify(issues, null, 2));
   console.log(o.json ? JSON.stringify(issues, null, 2) : formatIssues(issues));
@@ -62,7 +68,7 @@ withCommon(program.command("frames").description("F7: シーンごとのキー�
 withCommon(program.command("render").description("F5: MP4 に書き出す（変わったシーンだけ作り直す）"))
   .option("--no-cache", "キャッシュを使わず全シーンを作り直す")
   .action(async (input, o) => {
-    const { timeline, outDir } = await prepare(input, pipelineOpts(o));
+    const { timeline, outDir } = await prepare(input, pipelineOpts(o, true));
     const output = join(outDir, "video.mp4");
     await renderVideo(timeline, outDir, output, log, { cache: o.cache });
     console.log(output);
@@ -79,7 +85,7 @@ withCommon(program.command("build").description("検査 → キーフレーム �
   .option("--force", "検査エラーがあっても MP4 を作る")
   .option("--no-render", "MP4 を作らない（検査とキーフレームだけ）")
   .action(async (input, o) => {
-    const { timeline, outDir, errors } = await check(input, o);
+    const { timeline, outDir, errors } = await check(input, o, o.render);
     const shots = await captureFrames(timeline, outDir, { mode: "final" });
     console.log(`\nキーフレーム: ${join(outDir, "frames/overview.png")}（シーン別: ${shots.map((s) => s.file).join(", ")}）`);
     if (errors && !o.force) {

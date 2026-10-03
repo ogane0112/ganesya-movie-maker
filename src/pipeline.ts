@@ -19,6 +19,8 @@ export type PipelineOptions = {
   tts: TtsProvider;
   voicevoxUrl: string;
   log: (msg: string) => void;
+  /** MP4 を書き出すとき true。VOICEVOX に繋がらなければ無音で進めずにエラーにする */
+  requireVoice?: boolean;
 };
 
 export function defaultOutDir(input: string): string {
@@ -44,7 +46,12 @@ export async function prepare(input: string, opts: PipelineOptions): Promise<{ d
   await mkdir(outDir, { recursive: true });
   const doc = await copyImages(await loadSceneDoc(input), input, outDir);
   await writeFile(join(outDir, "scenes.json"), JSON.stringify(doc, null, 2));
-  const audio = await synthesizeAll(doc, outDir, { provider: opts.tts, voicevoxUrl: opts.voicevoxUrl, log: opts.log });
+  const audio = await synthesizeAll(doc, outDir, {
+    provider: opts.tts,
+    voicevoxUrl: opts.voicevoxUrl,
+    log: opts.log,
+    requireVoice: opts.requireVoice,
+  });
   const character = await loadCharacter(doc, input, outDir);
   const theme = await loadTheme(doc.meta.theme, input, outDir);
   const audioAssets = await prepareAudioAssets(doc.meta, input, outDir);
