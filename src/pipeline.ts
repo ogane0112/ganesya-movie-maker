@@ -19,7 +19,7 @@ export type PipelineOptions = {
   tts: TtsProvider;
   voicevoxUrl: string;
   log: (msg: string) => void;
-  /** MP4 を書き出すとき true。VOICEVOX に繋がらなければ無音で進めずにエラーにする */
+  /** MP4 を書き出すとき true。VOICEVOX に繋がらない・BGM が取れないときに、無しで進めずにエラーにする */
   requireVoice?: boolean;
 };
 
@@ -54,9 +54,9 @@ export async function prepare(input: string, opts: PipelineOptions): Promise<{ d
   });
   const character = await loadCharacter(doc, input, outDir);
   const theme = await loadTheme(doc.meta.theme, input, outDir);
-  const audioAssets = await prepareAudioAssets(doc.meta, input, outDir);
+  const audioAssets = await prepareAudioAssets(doc.meta, input, outDir, { strict: opts.requireVoice, log: opts.log });
   const timeline = await buildTimeline(doc, audio, theme, character, audioAssets);
-  const credits = [audio.credit, character?.credit, doc.meta.bgmCredit].filter(Boolean);
+  const credits = [audio.credit, character?.credit, audioAssets.bgm?.credit].filter(Boolean);
   await writeFile(join(outDir, "credits.txt"), credits.join("\n") + (credits.length ? "\n" : ""));
   await writeFile(join(outDir, "timeline.json"), JSON.stringify(timeline, null, 2));
   if (doc.meta.subtitles !== "none") await writeFile(join(outDir, "subtitles.srt"), toSrt(timeline));

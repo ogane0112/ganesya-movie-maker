@@ -121,11 +121,11 @@ export const Meta = z.object({
   glossary: z.record(z.string(), z.string()).default({}),
   /** 読みの辞書（表記 → よみ）。全文の読み上げに適用する */
   readings: z.record(z.string(), z.string()).default({}),
-  /** BGM（台本からの相対パス）。ナレーション中は自動で音量を下げる */
+  /** BGM。カタログの曲（maou:acoustic50。gmm bgm list で一覧）か、台本からの相対パス */
   bgm: z.string().optional(),
-  /** BGM の音量（ナレーションがないとき, 0〜1） */
-  bgmVolume: z.number().min(0).max(1).default(0.2),
-  /** BGM のクレジット表記（credits.txt に書く） */
+  /** BGM の音量（ナレーションがないとき）。曲の音の大きさはナレーションにそろえてあり、1.0 で同じ大きさ */
+  bgmVolume: z.number().min(0).max(1).default(0.3),
+  /** BGM のクレジット表記（credits.txt に書く）。カタログの曲なら自動 */
   bgmCredit: z.string().optional(),
   /** 場面転換の効果音。default（組み込み）/ none / 音声ファイルのパス */
   se: z.string().default("default"),
@@ -262,7 +262,14 @@ export type ResolvedCharacter = {
 
 export type TimelineAudio = {
   /** volume: ナレーションがないときの音量 / duck: ナレーション中にかける倍率 */
-  bgm?: { src: string; volume: number; duck: number };
+  bgm?: {
+    src: string;
+    volume: number;
+    duck: number;
+    /** 元の曲の音の大きさ（LUFS）。volume はこれをナレーションにそろえたうえでの値 */
+    lufs?: number;
+    credit?: string;
+  };
   se?: { src: string; volume: number };
 };
 

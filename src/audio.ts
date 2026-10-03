@@ -1,25 +1,62 @@
 // F9: BGM と効果音。
-//   bgm: <パス>          ループ再生し、ナレーション中は自動で音量を下げる（ダッキング）
+//   bgm: maou:<曲ID>     BGM カタログ（bgm/*.json）の曲。bgm/cache/ に取ってくる
+//   bgm: <パス>          手元の音声ファイル
+//   どちらもループ再生し、ナレーション中は自動で音量を下げる（ダッキング）。音の大きさは自動でそろえる
 //   se: default | none | <パス>   シーンが切り替わるときの効果音（default はコードで合成した短いチャイム）
 import { createHash } from "node:crypto";
 import { existsSync } from "node:fs";
 import { copyFile, mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, extname, join } from "node:path";
+import { fetchTrack, findTrack, loudnessOf } from "./bgm.js";
 import type { Meta, TimelineAudio } from "./schema.js";
 
-export async function prepareAudioAssets(meta: Meta, scriptPath: string, outDir: string): Promise<TimelineAudio> {
+/**
+ * ナレーション（VOICEVOX）の音の大きさ（LUFS, 実測）。BGM はこの大きさにそろえてから bgmVolume を掛けるので、
+ * どの曲でも bgmVolume が同じ意味になる（1.0 でナレーションと同じ大きさ）。
+ */
+export const NARRATION_LUFS = -24;
+
+export async function prepareAudioAssets(
+  meta: Meta,
+  scriptPath: string,
+  outDir: string,
+  opts: { strict?: boolean; log?: (msg: string) => void } = {},
+): Promise<TimelineAudio> {
   const audio: TimelineAudio = {};
   if (meta.bgm) {
-    audio.bgm = { src: await copyAsset(join(dirname(scriptPath), meta.bgm), outDir, "bgm"), volume: meta.bgmVolume, duck: 0.35 };
+    const track = await findTrack(meta.bgm);
+    let file: string;
+    try {
+      file = track ? await fetchTrack(track) : join(dirname(scriptPath), meta.bgm);
+      if (!existsSync(file)) throw new Error(`BGM のファイルがありません: ${file}`);
+    } catch (e) {
+      // 検査やキーフレームでは BGM は鳴らないので、無しで進める。書き出しでは止める
+      if (opts.strict) throw e;
+      opts.log?.(`${(e as Error).message}（BGM なしで進めます）`);
+      return { ...audio, ...(await prepareSe(meta, scriptPath, outDir)) };
+    }
+    const { lufs } = await loudnessOf(file);
+    // 曲ごとの音の大きさの違いをならす（極端な増幅はしない）
+    const gain = Math.min(4, Math.pow(10, (NARRATION_LUFS - lufs) / 20));
+    audio.bgm = {
+      src: await copyAsset(file, outDir, "bgm"),
+      volume: meta.bgmVolume * gain,
+      duck: 0.4,
+      lufs,
+      credit: meta.bgmCredit ?? (track && `${track.credit}${track.title ? `「${track.title}」` : ""}`),
+    };
   }
+  return { ...audio, ...(await prepareSe(meta, scriptPath, outDir)) };
+}
+
+async function prepareSe(meta: Meta, scriptPath: string, outDir: string): Promise<TimelineAudio> {
+  if (meta.se === "none") return {};
   if (meta.se === "default") {
     await mkdir(join(outDir, "public/se"), { recursive: true });
     await writeFile(join(outDir, "public/se/transition.wav"), chime());
-    audio.se = { src: "se/transition.wav", volume: 0.5 };
-  } else if (meta.se !== "none") {
-    audio.se = { src: await copyAsset(join(dirname(scriptPath), meta.se), outDir, "se"), volume: 0.5 };
+    return { se: { src: "se/transition.wav", volume: 0.5 } };
   }
-  return audio;
+  return { se: { src: await copyAsset(join(dirname(scriptPath), meta.se), outDir, "se"), volume: 0.5 } };
 }
 
 async function copyAsset(from: string, outDir: string, dir: string): Promise<string> {

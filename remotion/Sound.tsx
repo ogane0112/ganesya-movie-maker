@@ -33,7 +33,8 @@ export const Sound: React.FC<{ timeline: Timeline }> = ({ timeline }) => {
   const spans = speechSpans(timeline);
   return (
     <>
-      {bgm && <Audio src={staticFile(bgm.src)} loop volume={(f) => bgmVolumeAt(f, timeline, spans)} />}
+      {/* プレビューの音量は 1 までなので切り詰める（書き出しの合成 src/mix.ts は正確な値を使う） */}
+      {bgm && <Audio src={staticFile(bgm.src)} loop volume={(f) => Math.min(1, bgmVolumeAt(f, timeline, spans))} />}
       {se &&
         timeline.scenes.slice(1).map((scene) => (
           <Sequence key={scene.id} from={scene.start} layout="none">

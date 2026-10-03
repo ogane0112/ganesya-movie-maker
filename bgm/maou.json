@@ -1,0 +1,97 @@
+{
+  "provider": "魔王魂",
+  "site": "https://maou.audio/",
+  "credit": "BGM: 魔王魂",
+  "terms": "無料・商用可・登録や報告は不要。著作権は作曲者（森田交一氏）にある。曲だけを取り出しての再配布は禁止なので、音源はリポジトリに入れない（bgm/cache/ は Git 管理外）。クレジットは「魔王魂」を表記する。規約: https://maou.audio/rule/",
+  "note": "曲の説明・タグは魔王魂の各曲ページの説明から。台本を書くエージェントは試聴できないので、雰囲気はこの説明で選び、最終確認は人が聴いて行う（heard: true にする）。",
+  "tracks": [
+    {
+      "id": "acoustic50",
+      "title": "至福の隙間",
+      "page": "https://maou.audio/bgm_acoustic50/",
+      "tags": ["明るい", "爽やか", "のどか", "カフェ", "アコースティック"],
+      "description": "カフェやラジオで流れていそうな曲。ランチ、午後、のどかな場面に。",
+      "fit": "解説全般の定番候補。話の邪魔をしにくい、明るく落ち着いた雰囲気",
+      "heard": false
+    },
+    {
+      "id": "acoustic51",
+      "title": "Calm down",
+      "page": "https://maou.audio/bgm_acoustic51/",
+      "tags": ["落ち着き", "スタイリッシュ", "夜", "アコースティック"],
+      "description": "キャンプでの夕食をイメージしたスタイリッシュな曲。",
+      "fit": "落ち着いた技術解説、設計やアーキテクチャの話",
+      "heard": false
+    },
+    {
+      "id": "acoustic35",
+      "title": "砂浜のわんこ",
+      "page": "https://maou.audio/bgm_acoustic35/",
+      "tags": ["爽やか", "少し哀愁", "アコースティック"],
+      "description": "爽やかで、少し哀愁も感じるアコースティック曲。",
+      "fit": "やわらかい入門解説、ふり返りの多い話",
+      "heard": false
+    },
+    {
+      "id": "acoustic27",
+      "page": "https://maou.audio/bgm_acoustic27/",
+      "tags": ["軽快", "爽やか", "アコースティック"],
+      "description": "サイクリングに合いそうなアコースティックギター曲。通学や散歩の場面に。",
+      "fit": "テンポよく進める手順の解説、ハンズオン",
+      "heard": false
+    },
+    {
+      "id": "piano25",
+      "title": "Cookie Cookie",
+      "page": "https://maou.audio/bgm_piano25/",
+      "tags": ["軽快", "日常", "かわいい", "ピアノ"],
+      "description": "軽快なピアノ曲。日常の場面に。",
+      "fit": "ずんだもんの明るい解説、初心者向けの入門",
+      "heard": false
+    },
+    {
+      "id": "piano38",
+      "title": "うつろな一時",
+      "page": "https://maou.audio/bgm_piano38/",
+      "tags": ["静か", "落ち着き", "控えめ", "ピアノ"],
+      "description": "主張の少ない静かなピアノ曲。",
+      "fit": "ナレーションを邪魔したくない解説。数式やコードをじっくり読ませる回",
+      "heard": false
+    },
+    {
+      "id": "piano35",
+      "title": "見渡す街へ",
+      "page": "https://maou.audio/bgm_piano35/",
+      "tags": ["穏やか", "ゆったり", "ピアノ"],
+      "description": "緩やかな時間を感じるピアノ曲。",
+      "fit": "ゆっくりした概念の説明、まとめ",
+      "heard": false
+    },
+    {
+      "id": "piano34",
+      "title": "静寂の世界へ",
+      "page": "https://maou.audio/bgm_piano34/",
+      "tags": ["静か", "少し寂しい", "暖かい", "ピアノ"],
+      "description": "少し寂しそうで少し暖かいピアノ曲。",
+      "fit": "障害や失敗事例のふり返り（ポストモーテム）",
+      "heard": false
+    },
+    {
+      "id": "piano37",
+      "title": "セピアの風",
+      "page": "https://maou.audio/bgm_piano37/",
+      "tags": ["回想", "穏やか", "ピアノ"],
+      "description": "回想シーンなどに良さそうなピアノ曲。",
+      "fit": "技術の歴史や背景の解説",
+      "heard": false
+    },
+    {
+      "id": "healing07",
+      "page": "https://maou.audio/bgm_healing07/",
+      "tags": ["明るい", "元気", "励ます", "ヒーリング"],
+      "description": "明るく元気で、励ますような雰囲気のヒーリング曲。",
+      "fit": "やる気が出る入門・学習のすすめ",
+      "heard": false
+    }
+  ]
+}

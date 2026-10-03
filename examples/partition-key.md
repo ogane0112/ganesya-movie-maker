@@ -5,6 +5,7 @@ voice: zundamon
 character: zundamon
 subtitles: burn
 se: default
+bgm: maou:acoustic50
 glossary:
   キーバリュー型: キーを指定して値を出し入れする、シンプルな形のデータベース
   アイテム: DynamoDBに保存するデータの1件。表の1行にあたる

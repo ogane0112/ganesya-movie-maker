@@ -12,8 +12,8 @@ voice: zundamon          # VOICEVOX の話者（zundamon / metan / tsumugi / 話
 character: zundamon      # 立ち絵（zundamon / builtin / none）
 subtitles: burn          # 字幕（burn / srt / none）
 se: default              # 場面転換の効果音（default / none / ファイル）
-bgm: assets/bgm.mp3      # BGM（省略可。利用者が用意したもの）
-bgmCredit: "BGM: 曲名 / 作者"
+bgm: maou:acoustic50     # BGM（gmm bgm list の名前か、手元のファイルのパス）。音量は自動でそろう
+bgmVolume: 0.3           # ナレーションがないときの BGM の大きさ（1.0 でナレーションと同じ）
 glossary:                # 専門用語（必ずどこかで説明する）
   ハッシュ値: キーから計算した数値。同じキーなら必ず同じ値になる
 readings:                # 読みの辞書（字幕は表記のまま）

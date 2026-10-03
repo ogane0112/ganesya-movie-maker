@@ -5,6 +5,7 @@ voice: zundamon
 character: zundamon
 subtitles: burn
 se: default
+bgm: maou:acoustic51
 glossary:
   タイムアウト: 決めた時間までに応答が来なかったら、失敗とみなして待つのをやめること
   リトライ: 失敗した処理を、もう一度やり直すこと

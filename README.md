@@ -35,6 +35,8 @@ npm install
 | `gmm preview <台本>` | Remotion Studio でプレビュー |
 | `gmm build <台本>` | check → frames → render。検査エラーがあれば MP4 は作らない（`--force` / `--no-render`） |
 | `gmm parse <台本>` | `scenes.json` を書き出すだけ |
+| `gmm bgm list [--tag 落ち着き]` | BGM カタログ（`bgm/*.json`）を雰囲気・合う場面つきで一覧する |
+| `gmm bgm fetch maou:acoustic50` | カタログの曲を `bgm/cache/` に取ってくる（書き出し時にも自動で取る） |
 | `gmm terms <台本>` | 専門用語の候補（カタカナ語・英字の語）を回数・初出・glossary の有無つきで一覧する |
 | `gmm character import <psd> <dir>` | 立ち絵 PSD をレイヤーごとの PNG に分解する（下記「立ち絵」） |
 
@@ -50,9 +52,9 @@ theme: wakaba        # wakaba（緑基調）/ dark / テーマJSONのパス
 voice: zundamon      # zundamon / metan / tsumugi / … / VOICEVOX の話者ID / 日本語の話者名
 character: zundamon  # 立ち絵（none / builtin / characters/<名前>/）
 subtitles: burn      # 字幕: burn（焼き込み＋SRT）/ srt（SRTだけ）/ none
-bgm: assets/bgm.mp3  # BGM（ナレーション中は自動で音量を下げる）。省略可
-bgmVolume: 0.2       # ナレーションがないときの BGM の音量
-bgmCredit: "BGM: 曲名 / 作者"   # credits.txt に書く
+bgm: maou:acoustic50 # BGM（カタログの曲名か、ファイルのパス）。ナレーション中は自動で音量を下げる。省略可
+bgmVolume: 0.3       # ナレーションがないときの BGM の大きさ（曲の音量はナレーションにそろえてあり、1.0 で同じ）
+bgmCredit: "BGM: 曲名 / 作者"   # credits.txt に書く（カタログの曲なら自動）
 se: default          # 場面転換の効果音: default（組み込み）/ none / ファイルのパス
 speed: 1.0           # 読み上げ速度
 glossary:            # 専門用語（用語: 一言の説明）。動画のどこかで必ず説明されているかを検査する
@@ -167,6 +169,19 @@ AI が JSON を直接書いて `gmm build scenes.json` としてもよい。
 - `crop` は元画像のうち表示する範囲、`height` は画面上の高さ（px）
 - `layersFile` を省略すると、レイヤー名を PNG ファイル名として扱う（自作の PNG を並べる場合）
 
+## BGM
+
+`bgm/maou.json` は魔王魂の曲のカタログ（曲ページ・曲名・タグ・説明・解説動画で合う場面）。
+`gmm bgm list` がこれを読みやすく出すので、AI エージェントは動画の雰囲気に合う曲を選べる。台本に `bgm: maou:<曲ID>` と書くと：
+
+- 書き出し時に曲ページから MP3 を探して `bgm/cache/` に取ってくる（取れなければ、手で置く場所をエラーに出す）
+- 曲の音の大きさ（LUFS）を測り、ナレーションの大きさにそろえる。`bgmVolume` はどの曲でも同じ意味になる
+- ナレーション中は自動で音量を下げ、最初と最後はフェードする
+- クレジット「BGM: 魔王魂「曲名」」を `credits.txt` に出す
+
+魔王魂の音源は再配布禁止なので、リポジトリには入れない（`bgm/cache/` は Git 管理外）。カタログの説明は曲ページの説明から写したもので、
+試聴して確かめた曲は `"heard": true` にする。曲を足すときは `bgm/maou.json` に追記する。
+
 ## テーマ
 
 `theme:` に組み込みテーマ名（`wakaba` / `dark`）か、テーマ JSON のパスを書く。JSON は変えたい項目だけ書けばよい。
@@ -239,7 +254,8 @@ remotion/
 - VOICEVOX の音声はキャラクターごとに利用規約とクレジット表記が異なる。公開前に各キャラクターの規約を確認し、動画の概要欄などに「VOICEVOX:ずんだもん」のように表記する（`credits.txt` に必要な表記をまとめて出力する）
 - ずんだもん立ち絵素材（坂本アヒル氏）は動画での利用・改変が可能、クレジット表記は任意。[東北ずん子・ずんだもんプロジェクトのガイドライン](https://zunko.jp/guideline.html)に従う。素材そのものはリポジトリに含めない
 - フォント: Noto Sans JP / JetBrains Mono（どちらも SIL Open Font License）を `@fontsource` から同梱。数式は KaTeX のフォント（MIT）
-- BGM は利用者が用意する（フリー BGM サイトなど）。規約に従って `bgmCredit:` にクレジットを書く。組み込みの効果音はコードで合成したもので、権利上の制約はない
+- BGM: 魔王魂（森田交一氏）の曲は無料・商用可。クレジットに「魔王魂」を表記する（`credits.txt` に自動で出る）。曲だけの再配布は禁止なので音源はリポジトリに入れない。[規約](https://maou.audio/rule/)
+- 手元の BGM を使うときは、その規約に従って `bgmCredit:` にクレジットを書く。組み込みの効果音はコードで合成したもので、権利上の制約はない
 - Remotion は個人・小規模チームは無料、それ以外は会社ライセンスが必要（[ライセンス](https://www.remotion.dev/license)）
 
 ## 開発

@@ -7,6 +7,8 @@ import { formatIssues } from "./inspect/rules.js";
 import { ScriptError } from "./parse.js";
 import { importPsd } from "./psd.js";
 import { findTermCandidates } from "./terms.js";
+import { cachePath, fetchTrack, findTrack, loadCatalogs } from "./bgm.js";
+import { existsSync } from "node:fs";
 import { loadSceneDoc, prepare, type PipelineOptions } from "./pipeline.js";
 import { preview, renderVideo } from "./render.js";
 
@@ -119,6 +121,39 @@ program
     }
     const missing = Object.keys(doc.meta.glossary).filter((t) => !findTermCandidates(doc).some((c) => c.word === t));
     if (missing.length) console.log(`\n（glossary にあるが上に出ない語: ${missing.join("、")}。漢字を含む語は gmm check で確かめてください）`);
+  });
+
+const bgm = program.command("bgm").description("BGM のカタログ（bgm/*.json）を扱う");
+
+bgm
+  .command("list")
+  .description("BGM の候補を、雰囲気・合う場面つきで一覧する。台本の bgm: に書く名前（maou:acoustic50 など）もここに出る")
+  .option("--tag <tag>", "タグで絞り込む（例: 落ち着き）")
+  .option("--json", "JSON で出す")
+  .action(async (o) => {
+    const tracks = (await loadCatalogs()).filter((t) => !o.tag || t.tags.includes(o.tag));
+    const rows = tracks.map((t) => ({ ...t, name: `${t.catalog}:${t.id}`, downloaded: existsSync(cachePath(t)) }));
+    if (o.json) return console.log(JSON.stringify(rows, null, 2));
+    for (const t of rows) {
+      console.log(`${t.name}${t.title ? `「${t.title}」` : ""}  [${t.tags.join("・")}]${t.downloaded ? "  (取得済み)" : ""}${t.heard ? "  (試聴済み)" : ""}`);
+      console.log(`    ${t.description}`);
+      if (t.fit) console.log(`    合う場面: ${t.fit}`);
+    }
+    const tags = [...new Set((await loadCatalogs()).flatMap((t) => t.tags))];
+    console.log(`\n${rows.length}曲。タグ: ${tags.join(" ")}`);
+    console.log("台本のフロントマターに bgm: <名前> と書く。クレジットは credits.txt に自動で出る");
+  });
+
+bgm
+  .command("fetch")
+  .description("カタログの曲を bgm/cache/ に取ってくる（render のときにも自動で取る）")
+  .argument("<names...>", "曲の名前（例: maou:acoustic50）")
+  .action(async (names: string[]) => {
+    for (const name of names) {
+      const t = await findTrack(name);
+      if (!t) throw new Error(`「${name}」はカタログの名前ではありません（例: maou:acoustic50）`);
+      console.log(`${name}\t${await fetchTrack(t)}`);
+    }
   });
 
 program
