@@ -23,7 +23,7 @@ export function isBlinking(frame: number, fps: number): boolean {
 
 /** 動画全体での「いまの文」と表情・口の状態 */
 export function characterState(timeline: Timeline, frame: number) {
-  let face = timeline.character?.defaultFace ?? "normal";
+  let face = timeline.segment?.initialFace ?? timeline.character?.defaultFace ?? "normal";
   let mouthOpen = false;
   let speaking = false;
   for (const scene of timeline.scenes) {
@@ -43,7 +43,8 @@ export const Character: React.FC<{ timeline: Timeline; character: ResolvedCharac
   const frame = useCurrentFrame();
   const { fps } = timeline.meta;
   const { face, mouthOpen, speaking, blink } = characterState(timeline, frame);
-  const enter = interpolate(frame, [0, 12], [0, 1], { extrapolateRight: "clamp" });
+  // 登場アニメーションは動画の最初だけ（シーン単位の書き出しでは2番目以降のシーンで出さない）
+  const enter = (timeline.segment?.index ?? 0) > 0 ? 1 : interpolate(frame, [0, 12], [0, 1], { extrapolateRight: "clamp" });
   // 話している間だけ、ゆっくり上下に揺れる
   const bob = speaking ? Math.sin((frame / fps) * Math.PI * 2 * 0.8) * 4 : 0;
   return (

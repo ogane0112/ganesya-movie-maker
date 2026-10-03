@@ -59,12 +59,14 @@ withCommon(program.command("frames").description("F7: シーンごとのキー�
     if (!o.scene) console.log(`${join(outDir, "frames/overview.png")}\t全シーン一覧`);
   });
 
-withCommon(program.command("render").description("F5: MP4 に書き出す")).action(async (input, o) => {
-  const { timeline, outDir } = await prepare(input, pipelineOpts(o));
-  const output = join(outDir, "video.mp4");
-  await renderVideo(timeline, outDir, output, log);
-  console.log(output);
-});
+withCommon(program.command("render").description("F5: MP4 に書き出す（変わったシーンだけ作り直す）"))
+  .option("--no-cache", "キャッシュを使わず全シーンを作り直す")
+  .action(async (input, o) => {
+    const { timeline, outDir } = await prepare(input, pipelineOpts(o));
+    const output = join(outDir, "video.mp4");
+    await renderVideo(timeline, outDir, output, log, { cache: o.cache });
+    console.log(output);
+  });
 
 withCommon(program.command("preview").description("F5: Remotion Studio でプレビューする"))
   .option("--port <n>", "ポート番号", (v) => Number(v))

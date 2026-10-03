@@ -255,4 +255,6 @@ export type Timeline = {
   durationInFrames: number;
   scenes: ResolvedScene[];
   character?: ResolvedCharacter;
+  /** シーン単位で書き出すとき（F10）だけ付く。何番目のシーンか、そのシーン開始時の表情 */
+  segment?: { index: number; initialFace?: string };
 };
