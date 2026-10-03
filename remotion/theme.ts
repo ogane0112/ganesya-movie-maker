@@ -52,7 +52,7 @@ export const THEMES: Record<string, Theme> = {
     codeTheme: "github-dark",
     fontSize: 48,
     padding: 96,
-    subtitle: { fontSize: 44, color: "#ffffff", stroke: "none", background: "rgba(24, 52, 28, 0.82)" },
+    subtitle: { fontSize: 44, color: "#ffffff", stroke: "none", background: "rgba(104, 168, 100, 0.85)" },
     fonts: [],
   },
   dark: {
