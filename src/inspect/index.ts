@@ -45,7 +45,8 @@ async function serve(root: string): Promise<{ url: string; server: Server }> {
   const server = createServer(async (req, res) => {
     const path = normalize(decodeURIComponent(new URL(req.url ?? "/", "http://x").pathname)).replace(/^(\.\.[/\\])+/, "");
     try {
-      const body = await readFile(join(root, path));
+      // staticFile() の参照（public/ 以下）もそのまま引けるようにする
+      const body = await readFile(join(root, path)).catch(() => readFile(join(root, "public", path)));
       res.writeHead(200, { "Content-Type": MIME[extname(path)] ?? "application/octet-stream" }).end(body);
     } catch {
       res.writeHead(404).end();

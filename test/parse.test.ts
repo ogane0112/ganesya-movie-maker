@@ -101,3 +101,10 @@ describe("splitSentences", () => {
     expect(splitSentences("あ。い！？\nう\n\nえ?")).toEqual(["あ。", "い！？", "う", "え?"]);
   });
 });
+
+describe("表情の指定", () => {
+  it("文頭の {face:x} を取り出し、{face:x} だけの行は次の文に付ける", () => {
+    const d = parseScript("## A\n\n{face:smile}こんにちは。普通の文。\n{face:think}\nどうしよう。\n");
+    expect(d.scenes[0].sentences).toEqual([{ text: "こんにちは。", face: "smile" }, { text: "普通の文。" }, { text: "どうしよう。", face: "think" }]);
+  });
+});

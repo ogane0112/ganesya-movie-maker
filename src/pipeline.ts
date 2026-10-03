@@ -3,6 +3,7 @@
 // （音声はキャッシュされるので、変えた文だけ作り直される）。
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { basename, extname, join } from "node:path";
+import { loadCharacter } from "./character.js";
 import { parseScript } from "./parse.js";
 import { SceneDoc, type Timeline } from "./schema.js";
 import { buildTimeline } from "./timeline.js";
@@ -39,7 +40,10 @@ export async function prepare(input: string, opts: PipelineOptions): Promise<{ d
   const doc = await loadSceneDoc(input);
   await writeFile(join(outDir, "scenes.json"), JSON.stringify(doc, null, 2));
   const audio = await synthesizeAll(doc, outDir, { provider: opts.tts, voicevoxUrl: opts.voicevoxUrl, log: opts.log });
-  const timeline = await buildTimeline(doc, audio);
+  const character = await loadCharacter(doc, input, outDir);
+  const timeline = await buildTimeline(doc, audio, character);
+  const credits = [audio.credit, character?.credit].filter(Boolean);
+  await writeFile(join(outDir, "credits.txt"), credits.join("\n") + (credits.length ? "\n" : ""));
   await writeFile(join(outDir, "timeline.json"), JSON.stringify(timeline, null, 2));
   opts.log(`タイムライン: ${timeline.scenes.length}シーン / ${(timeline.durationInFrames / timeline.meta.fps).toFixed(1)}秒`);
   return { doc, timeline, outDir };

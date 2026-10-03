@@ -26,9 +26,9 @@ const audio: AudioTiming = {
   provider: "silent",
   voice: "zundamon",
   sentences: [
-    { sceneId: "s01", index: 0, text: "一文目。", file: "audio/a.wav", seconds: 1.0 },
-    { sceneId: "s01", index: 1, text: "二文目。", file: "audio/b.wav", seconds: 2.0 },
-    { sceneId: "s02", index: 0, text: "三文目。", file: "audio/c.wav", seconds: 1.5 },
+    { sceneId: "s01", index: 0, text: "一文目。", file: "audio/a.wav", seconds: 1.0, mouth: [[0.1, 0.2]] },
+    { sceneId: "s01", index: 1, text: "二文目。", file: "audio/b.wav", seconds: 2.0, mouth: [] },
+    { sceneId: "s02", index: 0, text: "三文目。", file: "audio/c.wav", seconds: 1.5, mouth: [] },
   ],
 };
 

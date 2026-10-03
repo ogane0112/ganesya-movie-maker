@@ -2,6 +2,7 @@
 title: DynamoDBのパーティションキー入門
 theme: wakaba
 voice: zundamon
+character: zundamon
 ---
 
 ## タイトル
@@ -11,12 +12,12 @@ DynamoDBのパーティションキー入門
 キー設計で性能が決まる
 :::
 
-今日はDynamoDBのパーティションキーについて解説します。
+{face:smile}今日はDynamoDBのパーティションキーについて解説します。
 
 ## なぜキー設計が大事か
 
-DynamoDBでは、データの置き場所がキーで決まります。
-キーが偏ると、一部のサーバーにアクセスが集中します。
+{face:normal}DynamoDBでは、データの置き場所がキーで決まります。
+{face:troubled}キーが偏ると、一部のサーバーにアクセスが集中します。
 これをホットパーティションと呼びます。
 
 :::bullets
@@ -27,8 +28,8 @@ DynamoDBでは、データの置き場所がキーで決まります。
 
 ## 悪い例
 
-このコードでは日付をキーにしています。
-今日の日付に書き込みが集中してしまいます。
+{face:think}このコードでは日付をキーにしています。
+{face:surprised}今日の日付に書き込みが集中してしまいます。
 
 :::code lang=ts highlight="{1}:1 {2}:2"
 const item = { pk: today, sk: userId };
@@ -37,7 +38,7 @@ await db.put(item);
 
 ## 良い例
 
-ユーザーIDをキーにすると、書き込みがばらけます。
+{face:smile}ユーザーIDをキーにすると、書き込みがばらけます。
 アクセスの偏りがない値を選ぶのがコツです。
 
 :::code lang=ts highlight="{1}:1"

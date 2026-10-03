@@ -6,6 +6,7 @@ import { AbsoluteFill, Audio, Sequence, continueRender, delayRender, staticFile 
 import type { ResolvedElement, ResolvedScene, Timeline } from "../src/schema";
 import { getTheme, type Theme } from "./theme";
 import { appearStyle, useAppear } from "./anim";
+import { Character, CHARACTER_MARGIN } from "./Character";
 import { Bullets } from "./parts/Bullets";
 import { Code } from "./parts/Code";
 import { Text } from "./parts/Text";
@@ -26,11 +27,19 @@ function useFontsReady() {
 export const Video: React.FC<VideoProps> = ({ timeline, withAudio = true }) => {
   useFontsReady();
   const theme = getTheme(timeline.meta.theme);
+  // 立ち絵がいるときは、部品が立ち絵に重ならないよう右側を空ける
+  const ch = timeline.character;
+  const reserveRight = ch ? Math.max(0, ch.width + CHARACTER_MARGIN + 32 - theme.padding) : 0;
   return (
-    <AbsoluteFill data-gmm-canvas style={{ background: theme.background, fontFamily: theme.fontFamily }}>
+    <AbsoluteFill
+      data-gmm-canvas
+      lang="ja"
+      // 日本語を文節で折り返し（auto-phrase。lang="ja" が必要）、行の長さを揃える（balance）。「パー/ティション」のような泣き別れを防ぐ
+      style={{ background: theme.background, fontFamily: theme.fontFamily, wordBreak: "auto-phrase" as never, textWrap: "balance" }}
+    >
       {timeline.scenes.map((scene) => (
         <Sequence key={scene.id} from={scene.start} durationInFrames={scene.durationInFrames} name={`${scene.id} ${scene.heading}`}>
-          <SceneView scene={scene} theme={theme} />
+          <SceneView scene={scene} theme={theme} reserveRight={reserveRight} />
           {withAudio &&
             scene.sentences.map(
               (s, i) =>
@@ -42,11 +51,12 @@ export const Video: React.FC<VideoProps> = ({ timeline, withAudio = true }) => {
             )}
         </Sequence>
       ))}
+      {ch && <Character timeline={timeline} character={ch} />}
     </AbsoluteFill>
   );
 };
 
-const SceneView: React.FC<{ scene: ResolvedScene; theme: Theme }> = ({ scene, theme }) => {
+const SceneView: React.FC<{ scene: ResolvedScene; theme: Theme; reserveRight: number }> = ({ scene, theme, reserveRight }) => {
   const head = useAppear(0, 12);
   return (
     <AbsoluteFill data-gmm-scene={scene.id} style={{ boxSizing: "border-box", padding: theme.padding, display: "flex", flexDirection: "column", gap: 56 }}>
@@ -58,7 +68,7 @@ const SceneView: React.FC<{ scene: ResolvedScene; theme: Theme }> = ({ scene, th
           </div>
         </div>
       )}
-      <div data-gmm-content style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column", gap: 48 }}>
+      <div data-gmm-content style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column", gap: 48, marginRight: reserveRight }}>
         {scene.elements.map((el, i) => (
           <ElementView key={i} el={el} theme={theme} />
         ))}

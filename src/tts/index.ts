@@ -6,7 +6,7 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import type { AudioTiming, SceneDoc, SentenceAudio } from "../schema.js";
 import { silentWav, wavSeconds } from "./wav.js";
-import { resolveVoicevoxSpeaker, voicevoxAvailable, voicevoxSynthesize } from "./voicevox.js";
+import { mouthFromQuery, resolveVoicevoxSpeaker, voicevoxAvailable, voicevoxSynthesize } from "./voicevox.js";
 
 export type TtsProvider = "auto" | "voicevox" | "silent";
 
@@ -25,7 +25,8 @@ export async function synthesizeAll(doc: SceneDoc, outDir: string, opts: TtsOpti
       log(`VOICEVOX（${opts.voicevoxUrl}）に接続できないため、無音の仮音声（長さは文字数から推定）で進めます`);
     }
   }
-  const speaker = provider === "voicevox" ? await resolveVoicevoxSpeaker(opts.voicevoxUrl, doc.meta.voice) : 0;
+  const vv = provider === "voicevox" ? await resolveVoicevoxSpeaker(opts.voicevoxUrl, doc.meta.voice) : undefined;
+  const speaker = vv?.id ?? 0;
 
   await mkdir(join(outDir, "public/audio"), { recursive: true });
   const sentences: SentenceAudio[] = [];
@@ -38,21 +39,44 @@ export async function synthesizeAll(doc: SceneDoc, outDir: string, opts: TtsOpti
         .slice(0, 16);
       const file = `audio/${key}.wav`;
       const path = join(outDir, "public", file);
-      if (!existsSync(path)) {
-        const wav =
-          provider === "voicevox"
-            ? await voicevoxSynthesize(opts.voicevoxUrl, speaker, text, doc.meta.speed)
-            : silentWav(estimateSeconds(text, doc.meta.speed));
+      const lipPath = path.replace(/\.wav$/, ".mouth.json");
+      if (!existsSync(path) || !existsSync(lipPath)) {
+        let wav: Buffer;
+        let mouth: [number, number][];
+        if (provider === "voicevox") {
+          const r = await voicevoxSynthesize(opts.voicevoxUrl, speaker, text, doc.meta.speed);
+          wav = r.wav;
+          mouth = mouthFromQuery(r.query, wavSeconds(wav));
+        } else {
+          const seconds = estimateSeconds(text, doc.meta.speed);
+          wav = silentWav(seconds);
+          mouth = estimateMouth(seconds);
+        }
         await writeFile(path, wav);
+        await writeFile(lipPath, JSON.stringify(mouth));
         made++;
       }
-      sentences.push({ sceneId: scene.id, index, text, file, seconds: wavSeconds(await readFile(path)) });
+      sentences.push({
+        sceneId: scene.id,
+        index,
+        text,
+        file,
+        seconds: wavSeconds(await readFile(path)),
+        mouth: JSON.parse(await readFile(lipPath, "utf8")),
+      });
     }
   }
   log(`音声: ${sentences.length}文（新規 ${made} / キャッシュ ${sentences.length - made}）provider=${provider}`);
-  const timing: AudioTiming = { provider, voice: doc.meta.voice, sentences };
+  const timing: AudioTiming = { provider, voice: doc.meta.voice, credit: vv && `VOICEVOX:${vv.name}`, sentences };
   await writeFile(join(outDir, "audio-timing.json"), JSON.stringify(timing, null, 2));
   return timing;
+}
+
+/** 仮音声用の口パク：0.16秒ごとに開け閉めする */
+export function estimateMouth(seconds: number): [number, number][] {
+  const out: [number, number][] = [];
+  for (let t = 0.1; t + 0.1 < seconds - 0.1; t += 0.16) out.push([Math.round(t * 1000) / 1000, Math.round((t + 0.1) * 1000) / 1000]);
+  return out;
 }
 
 /** 仮音声用：日本語の読み上げはおよそ 1文字0.13秒（漢字は読みが長いので少し多め）。 */

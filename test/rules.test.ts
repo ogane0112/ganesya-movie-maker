@@ -41,7 +41,7 @@ describe("checkScene", () => {
     showHeading: true,
     start: 0,
     durationInFrames: 300,
-    sentences: [{ text: "a", from: 12, durationInFrames: 60 }],
+    sentences: [{ text: "a", from: 12, durationInFrames: 60, mouth: [] }],
     elements: [{ type: "text", text: "x", variant: "plain", from: 0 }],
     ...over,
   });
@@ -56,7 +56,7 @@ describe("checkScene", () => {
       "short-scene",
       "short-visible",
     ]);
-    expect(ruleNames(scene({ sentences: [{ text: "長い", from: 0, durationInFrames: 400 }] }))).toEqual(["long-sentence"]);
+    expect(ruleNames(scene({ sentences: [{ text: "長い", from: 0, durationInFrames: 400, mouth: [] }] }))).toEqual(["long-sentence"]);
   });
 
   it("情報量の多すぎを警告する", () => {

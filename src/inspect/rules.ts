@@ -46,6 +46,8 @@ export function checkLayout(m: Measurement, sceneLabel: string): Issue[] {
     bottom: m.canvas.height - LIMITS.safeMargin,
   };
   for (const el of m.elements) {
+    // 立ち絵は画面下端に接して置くのが正しいので、安全領域の検査から外す（重なりは検査する）
+    if (el.kind === "character") continue;
     const r = el.rect;
     const sides: string[] = [];
     if (r.x < safe.left - 0.5) sides.push(`左 ${Math.round(safe.left - r.x)}px`);

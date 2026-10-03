@@ -4,3 +4,7 @@ build/
 out/
 *.mp4
 *.wav
+# 立ち絵素材（PSD から書き出したもの）は配布物を含めない。gmm character import で作り直す
+characters/*/layers/
+characters/*/layers.json
+*.psd

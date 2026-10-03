@@ -27,6 +27,7 @@ async function show(timeline: Timeline, frame: number): Promise<void> {
   );
   for (let i = 0; i < 3; i++) await new Promise((r) => requestAnimationFrame(r));
   await document.fonts.ready;
+  await Promise.all([...document.images].map((img) => img.decode().catch(() => {})));
 }
 
 function measure(): Measurement {
@@ -42,7 +43,7 @@ function measure(): Measurement {
   return {
     sceneId: scene.dataset.gmmScene!,
     canvas: { width: origin.width, height: origin.height },
-    elements: [...scene.querySelectorAll<HTMLElement>("[data-gmm-el]")].map((el) => ({ kind: el.dataset.gmmEl!, rect: rect(el) })),
+    elements: [...canvas.querySelectorAll<HTMLElement>("[data-gmm-el]")].map((el) => ({ kind: el.dataset.gmmEl!, rect: rect(el) })),
     texts: [...scene.querySelectorAll<HTMLElement>("[data-gmm-text]")].map((el) => ({
       text: (el.textContent ?? "").slice(0, 40),
       fontSize: parseFloat(getComputedStyle(el).fontSize),

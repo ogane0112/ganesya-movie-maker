@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { captureFrames, runChecks } from "./inspect/index.js";
 import { formatIssues } from "./inspect/rules.js";
 import { ScriptError } from "./parse.js";
+import { importPsd } from "./psd.js";
 import { prepare, type PipelineOptions } from "./pipeline.js";
 import { preview, renderVideo } from "./render.js";
 
@@ -89,6 +90,21 @@ withCommon(program.command("build").description("検査 → キーフレーム �
       await renderVideo(timeline, outDir, output, log);
       console.log(`動画: ${output}`);
     }
+  });
+
+program
+  .command("character")
+  .description("立ち絵の素材を扱う")
+  .command("import")
+  .description("F14: 立ち絵 PSD をレイヤーごとの PNG と layers.json に分解する（PSDTool 形式の * / ! に対応）")
+  .argument("<psd>", "PSD ファイル")
+  .argument("<dir>", "書き出し先（例: characters/zundamon）")
+  .action(async (psd, dir) => {
+    log("PSD を読み込み中…");
+    const r = await importPsd(psd, dir);
+    for (const l of r.layers) console.log(`${l.radio ? "*" : " "} ${l.path}`);
+    console.log(`\n${r.layers.length}レイヤーを ${join(dir, "layers")} に書き出しました（${r.width}×${r.height}）。`);
+    console.log(`${join(dir, "character.json")} で、表情ごとに使うレイヤーを上のパスで指定してください（README の「立ち絵」参照）。`);
   });
 
 program.parseAsync().catch((e) => {

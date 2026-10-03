@@ -5,6 +5,7 @@
 //   地の文         ナレーション（。！？ と改行で文に分ける）
 //   :::部品名 引数 画面に出すもの（::: で閉じる）
 //   {n}            n番目のナレーション文が始まるときに出す
+//   {face:smile}   文頭に書くと、その文から立ち絵の表情が変わる
 import { Element, SceneDoc, type Scene } from "./schema.js";
 
 export class ScriptError extends Error {
@@ -37,7 +38,7 @@ export function parseScript(source: string): SceneDoc {
 
   const flush = () => {
     if (!current) return;
-    const sentences = splitSentences(current.narration.join("\n")).map((text) => ({ text }));
+    const sentences = takeFaces(splitSentences(current.narration.join("\n")));
     const elements: Element[] = [];
     for (const { el, line } of current.elements) {
       const parsed = Element.safeParse(el);
@@ -116,6 +117,24 @@ export function splitSentences(text: string): string[] {
       if (/^[。！？!?]+$/.test(s) && out.length) out[out.length - 1] += s;
       else out.push(s);
     }
+  }
+  return out;
+}
+
+/** 文頭の {face:表情} を取り出す。{face:x} だけの行は次の文に付ける */
+function takeFaces(sentences: string[]): { text: string; face?: string }[] {
+  const out: { text: string; face?: string }[] = [];
+  let pending: string | undefined;
+  for (const s of sentences) {
+    const m = s.match(/^\{face:([\w-]+)\}\s*/);
+    const text = m ? s.slice(m[0].length) : s;
+    const face = m?.[1] ?? pending;
+    if (!text) {
+      pending = face;
+      continue;
+    }
+    pending = undefined;
+    out.push(face ? { text, face } : { text });
   }
   return out;
 }

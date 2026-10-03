@@ -35,6 +35,7 @@ npm install
 | `gmm preview <台本>` | Remotion Studio でプレビュー |
 | `gmm build <台本>` | check → frames → render。検査エラーがあれば MP4 は作らない（`--force` / `--no-render`） |
 | `gmm parse <台本>` | `scenes.json` を書き出すだけ |
+| `gmm character import <psd> <dir>` | 立ち絵 PSD をレイヤーごとの PNG に分解する（下記「立ち絵」） |
 
 共通オプション: `--tts auto|voicevox|silent`、`--voicevox-url`、`-o <dir>`。
 進行状況は stderr、結果は stdout に出る。
@@ -46,6 +47,7 @@ npm install
 title: DynamoDBのパーティションキー入門
 theme: wakaba        # wakaba（緑基調）/ dark
 voice: zundamon      # zundamon / metan / tsumugi / … / VOICEVOX の話者ID / 日本語の話者名
+character: zundamon  # 立ち絵（none / builtin / characters/<名前>/）
 speed: 1.0           # 読み上げ速度
 ---
 
@@ -67,12 +69,62 @@ DynamoDBでは、データの置き場所がキーで決まります。   ← �
 | コード | `:::code lang=ts {n} highlight="{1}:1 {2}:2-3,5"` | Shiki で色付け。`{文}:{行}` で文に合わせて行をハイライト |
 | テキスト | `:::text {n}` / `:::callout {n}` | 本文 / 枠付きの要点 |
 
-`{n}` を省略した部品はシーンの冒頭から出る。台本の誤り（存在しない文番号、未知の部品など）は行番号付きで報告される。
+`{n}` を省略した部品はシーンの冒頭から出る。
+ナレーションの文頭に `{face:smile}` と書くと、その文から立ち絵の表情が変わる（次の指定まで続く）。台本の誤り（存在しない文番号、未知の部品など）は行番号付きで報告される。
 
 ### シーン定義JSON
 
 台本は内部で `scenes.json`（仕様は [src/schema.ts](src/schema.ts) の `SceneDoc`）に変換される。
 AI が JSON を直接書いて `gmm build scenes.json` としてもよい。
+
+## 立ち絵
+
+画面右下に解説役の立ち絵を出す。口パクは VOICEVOX の音素タイミング（母音の間だけ口を開ける）に合わせ、
+まばたきは決まった間隔で行う。部品は立ち絵に重ならないよう右側を空けて配置され、重なれば検査で見つかる。
+
+- `character: builtin` — 組み込みキャラ（SVG）。素材なしで試せる。表情: normal / smile / surprised / troubled / think
+- `character: zundamon` — `characters/zundamon/`（坂本アヒル氏の「ずんだもん立ち絵素材」）。表情: normal / smile / surprised / troubled / think / angry
+
+### ずんだもん立ち絵の準備
+
+素材の PSD はリポジトリに含めていない。手元の PSD をレイヤーごとの PNG に分解する：
+
+```sh
+./bin/gmm.mjs character import "ずんだもん立ち絵素材2.3.psd" characters/zundamon
+```
+
+`characters/zundamon/layers/*.png` と `layers.json` ができる（Git 管理外）。
+どの表情でどのパーツを使うかは `characters/zundamon/character.json` に書いてある。
+
+### character.json
+
+レイヤー（同じ大きさの透過 PNG）を重ねて立ち絵を作る。表示されるのは
+`base` + 表情の `layers` + 目（まばたき中は `blink`、それ以外は `eyes`）+ 口（口パク中は `open`、それ以外は `mouth`）。
+`eyes` / `blink` / `mouth` / `open` は最上位に既定値を書き、表情ごとに上書きできる。
+
+```json
+{
+  "name": "ずんだもん",
+  "credit": "立ち絵：坂本アヒル",
+  "layersFile": "layers.json",
+  "crop": { "x": 240, "y": 90, "width": 740, "height": 1060 },
+  "height": 680,
+  "base": ["尻尾的なアレ", "服装1/いつもの服", "服装1/左腕/基本", "服装1/右腕/基本", "顔色/ほっぺ", "枝豆/枝豆通常"],
+  "eyes": ["目/目セット/普通白目", "目/目セット/黒目/普通目"],
+  "blink": ["目/なごみ目"],
+  "mouth": ["口/むふ"],
+  "open": ["口/ほあ"],
+  "expressions": {
+    "normal": { "layers": ["眉/普通眉"] },
+    "think": { "layers": ["眉/困り眉2", "服装1/左腕/考える"], "mouth": ["口/むー"], "open": ["口/ほー"] }
+  }
+}
+```
+
+- レイヤー名は `gmm character import` が出力する PSD 内のパス（`*` `!` を除いたもの）
+- PSDTool と同じく、`*` 付きレイヤーを表情で指定すると、同じグループの `base` のレイヤーは外れる（例: 腕を「考える」に差し替え）
+- `crop` は元画像のうち表示する範囲、`height` は画面上の高さ（px）
+- `layersFile` を省略すると、レイヤー名を PNG ファイル名として扱う（自作の PNG を並べる場合）
 
 ## 出力ディレクトリ
 
@@ -82,6 +134,8 @@ build/<台本名>/
   audio-timing.json    文ごとの音声ファイルと秒数
   timeline.json        フレーム単位に解決したタイムライン（Remotion に渡す）
   public/audio/*.wav   ナレーション音声（ハッシュ名でキャッシュ）
+  public/characters/   立ち絵のレイヤー（使うものだけ）
+  credits.txt          クレジット表記（VOICEVOX・立ち絵）
   check.json           検査結果
   frames/              キーフレーム（overview.png = 全シーン一覧）
   video.mp4
@@ -100,9 +154,12 @@ src/
   inspect/index.ts   F6/F7 Playwright で測定・キーフレーム撮影
   inspect/page.tsx   検査用ページ（Remotion の Thumbnail で任意フレームを描画）
   render.ts          F5 MP4 書き出し・プレビュー
+  character.ts       F14 立ち絵の読み込み（character.json → 表情ごとのレイヤー集合）
+  psd.ts             F14 PSD → レイヤー PNG
 remotion/
   Video.tsx          全体の構成（シーン → 見出し + 部品）
-  parts/             F4 部品集（Title / Bullets / Code / Text）
+  parts/             F4 部品集（Title / Bullets / Code / Text）と組み込みキャラ
+  Character.tsx      F14 立ち絵（口パク・まばたき・表情）
   theme.ts           テーマ
 ```
 
@@ -111,7 +168,8 @@ remotion/
 
 ## 権利
 
-- VOICEVOX の音声はキャラクターごとに利用規約とクレジット表記が異なる。公開前に各キャラクターの規約を確認し、動画の概要欄などに「VOICEVOX:ずんだもん」のように表記する
+- VOICEVOX の音声はキャラクターごとに利用規約とクレジット表記が異なる。公開前に各キャラクターの規約を確認し、動画の概要欄などに「VOICEVOX:ずんだもん」のように表記する（`credits.txt` に必要な表記をまとめて出力する）
+- ずんだもん立ち絵素材（坂本アヒル氏）は動画での利用・改変が可能、クレジット表記は任意。[東北ずん子・ずんだもんプロジェクトのガイドライン](https://zunko.jp/guideline.html)に従う。素材そのものはリポジトリに含めない
 - フォント: Noto Sans JP / JetBrains Mono（どちらも SIL Open Font License）を `@fontsource` から同梱
 - Remotion は個人・小規模チームは無料、それ以外は会社ライセンスが必要（[ライセンス](https://www.remotion.dev/license)）
 

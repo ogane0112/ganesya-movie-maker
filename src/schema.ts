@@ -53,7 +53,13 @@ export const Scene = z.object({
   heading: z.string(),
   /** 見出しバーを出すか。title 部品だけのシーンでは false にする */
   showHeading: z.boolean().default(true),
-  sentences: z.array(z.object({ text: z.string() })),
+  sentences: z.array(
+    z.object({
+      text: z.string(),
+      /** 立ち絵の表情。この文から切り替わり、次の指定まで続く */
+      face: z.string().optional(),
+    }),
+  ),
   elements: z.array(Element),
 });
 
@@ -61,6 +67,8 @@ export const Meta = z.object({
   title: z.string().default("untitled"),
   theme: z.string().default("wakaba"),
   voice: z.string().default("zundamon"),
+  /** 立ち絵。none / builtin / characters/<名前>/ の画像セット / ディレクトリのパス */
+  character: z.string().default("none"),
   /** 読み上げ速度（VOICEVOX の speedScale） */
   speed: z.number().default(1.0),
   fps: z.number().int().default(30),
@@ -92,11 +100,15 @@ export type SentenceAudio = {
   /** 出力ディレクトリの public/ からの相対パス（Remotion の staticFile で読む） */
   file: string;
   seconds: number;
+  /** 口を開けている区間（秒）。立ち絵の口パクに使う */
+  mouth: [number, number][];
 };
 
 export type AudioTiming = {
   provider: string;
   voice: string;
+  /** クレジット表記（例: VOICEVOX:ずんだもん） */
+  credit?: string;
   sentences: SentenceAudio[];
 };
 
@@ -129,6 +141,10 @@ export type ResolvedSentence = {
   from: number;
   durationInFrames: number;
   audio?: string;
+  /** この文を話している間の表情（前の文から引き継いだものを含む） */
+  face?: string;
+  /** 口を開けている区間（シーン先頭からのフレーム） */
+  mouth: [number, number][];
 };
 
 export type ResolvedScene = {
@@ -142,8 +158,34 @@ export type ResolvedScene = {
   elements: ResolvedElement[];
 };
 
+/** 立ち絵の1レイヤー。src は出力ディレクトリの public/ からの相対パス */
+export type CharacterLayer = { src: string; blend: string; opacity: number };
+
+/** 表情ごと・状態ごとに表示するレイヤー（layers の添字、下から上の順） */
+export type CharacterStates = { closed: number[]; open: number[]; blink: number[]; blinkOpen: number[] };
+
+export type ResolvedCharacter = {
+  name: string;
+  credit?: string;
+  /** 画面上の表示サイズ（px）。部品はこの幅を避けて配置される */
+  width: number;
+  height: number;
+  defaultFace: string;
+} & (
+  | { kind: "builtin" }
+  | {
+      kind: "layers";
+      /** 元画像（PSD）のキャンバスサイズと、そのうち表示する範囲 */
+      canvas: { width: number; height: number };
+      crop: { x: number; y: number; width: number; height: number };
+      layers: CharacterLayer[];
+      expressions: Record<string, CharacterStates>;
+    }
+);
+
 export type Timeline = {
   meta: Meta;
   durationInFrames: number;
   scenes: ResolvedScene[];
+  character?: ResolvedCharacter;
 };

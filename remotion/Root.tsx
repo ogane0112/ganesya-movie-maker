@@ -6,7 +6,7 @@ import { COMPOSITION_ID } from "./constants";
 
 // プレビュー時は --props で timeline を渡す。何も渡さないときの表示用。
 const placeholder: Timeline = {
-  meta: { title: "placeholder", theme: "wakaba", voice: "zundamon", speed: 1, fps: 30, width: 1920, height: 1080 },
+  meta: { title: "placeholder", theme: "wakaba", voice: "zundamon", character: "none", speed: 1, fps: 30, width: 1920, height: 1080 },
   durationInFrames: 90,
   scenes: [
     {

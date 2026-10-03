@@ -2,18 +2,27 @@
 // 部品の出現・強調は「対応するナレーション文の開始フレーム」に合わせる。
 import { codeToTokens } from "shiki";
 import { getTheme } from "../remotion/theme.js";
-import type { AudioTiming, Element, ResolvedElement, ResolvedScene, SceneDoc, Timeline } from "./schema.js";
+import type {
+  AudioTiming,
+  Element,
+  ResolvedCharacter,
+  ResolvedElement,
+  ResolvedScene,
+  SceneDoc,
+  Timeline,
+} from "./schema.js";
 
 /** シーン冒頭の間・文と文の間・シーン末尾の余韻（秒） */
 export const PACING = { leadIn: 0.4, gap: 0.35, tail: 1.0 };
 
-export async function buildTimeline(doc: SceneDoc, audio: AudioTiming): Promise<Timeline> {
+export async function buildTimeline(doc: SceneDoc, audio: AudioTiming, character?: ResolvedCharacter): Promise<Timeline> {
   const { fps } = doc.meta;
   const theme = getTheme(doc.meta.theme);
   const sec = (s: number) => Math.round(s * fps);
 
   const scenes: ResolvedScene[] = [];
   let start = 0;
+  let face = character?.defaultFace;
   for (const scene of doc.scenes) {
     const clips = audio.sentences.filter((a) => a.sceneId === scene.id).sort((a, b) => a.index - b.index);
     if (clips.length !== scene.sentences.length) {
@@ -24,7 +33,9 @@ export async function buildTimeline(doc: SceneDoc, audio: AudioTiming): Promise<
       const from = i === 0 ? cursor : cursor + sec(PACING.gap);
       const durationInFrames = Math.max(1, Math.ceil(c.seconds * fps));
       cursor = from + durationInFrames;
-      return { text: c.text, from, durationInFrames, audio: c.file };
+      face = scene.sentences[i].face ?? face; // 表情は次の指定まで続く
+      const mouth = c.mouth.map(([a, b]): [number, number] => [from + Math.round(a * fps), from + Math.max(Math.round(b * fps), Math.round(a * fps) + 1)]);
+      return { text: c.text, from, durationInFrames, audio: c.file, face, mouth };
     });
     const durationInFrames = cursor + sec(PACING.tail);
     const at = (n: number | undefined) => (n === undefined ? 0 : sentences[n - 1].from);
@@ -43,7 +54,7 @@ export async function buildTimeline(doc: SceneDoc, audio: AudioTiming): Promise<
     });
     start += durationInFrames;
   }
-  return { meta: doc.meta, durationInFrames: start, scenes };
+  return { meta: doc.meta, durationInFrames: start, scenes, character };
 }
 
 async function resolveElement(
