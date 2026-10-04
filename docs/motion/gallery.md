@@ -95,3 +95,10 @@ gmm
 - 動かす: コマンド1つ
 - 直す: AI が検査
 :::
+
+## step beats=6
+:::backdrop style=gradient :::
+:::step n=2 of=3 area=left
+コマンドひとつ
+声・字幕・画面・曲まで
+:::

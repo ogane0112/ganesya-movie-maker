@@ -5,7 +5,7 @@ import type { ResolvedMotionElement } from "../../src/motion/schema";
 import type { ResolvedScene, Timeline } from "../../src/schema";
 import { beatInfo, paletteOf, random, type Palette } from "./kit";
 import { Backdrop, Chart, Counter, Hero, History, Kinetic, Shot } from "./parts";
-import { Clip, Editor, Features, Terminal } from "./ui";
+import { Clip, Editor, Features, Step, Terminal } from "./ui";
 import type { Area } from "../../src/motion/schema";
 
 /** 置き場所（area）の枠。画面の端から 80px、枠どうしは 40px あける */
@@ -87,6 +87,8 @@ const Layer: React.FC<{
       return <Backdrop el={el} {...p} />;
     case "shot":
       return <Shot el={el} {...p} />;
+    case "step":
+      return <Step el={el} {...p} />;
     case "terminal":
       return <Terminal el={el} {...p} />;
     case "editor":

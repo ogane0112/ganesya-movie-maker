@@ -119,6 +119,11 @@ $ gmm build x.md
     expect(c).toMatchObject({ type: "clip", src: "v.mp4", start: 3, area: "tl", caption: "説明" });
     expect(f).toMatchObject({ type: "features", items: [{ title: "書く", text: "台本だけ" }, { title: "動かす", text: "" }] });
   });
+  it("step は番号・題・説明", () => {
+    const s = parseMotionScript("---\nlayout: motion\n---\n## A beats=4\n:::step n=2 of=3 area=left\n題\n説明1\n説明2\n:::\n");
+    expect(s.scenes[0].motion![0]).toMatchObject({ type: "step", n: 2, of: 3, area: "left", title: "題", text: "説明1\n説明2" });
+    expect(() => parseMotionScript("---\nlayout: motion\n---\n## A beats=4\n:::step\n題\n:::\n")).toThrow("n=番号");
+  });
   it("ターミナルの行は every 拍ごと", () => {
     const t = buildMotionTimeline(d, { provider: "silent", voice: "z", sentences: [] }, THEMES.night);
     const el = t.scenes[0].motion![0];

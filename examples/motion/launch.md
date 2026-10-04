@@ -29,20 +29,20 @@ gmm
 
 ## 1 書く beats=16 transition=slide
 :::backdrop style=gradient :::
-:::kinetic style=slide mode=stack area=left every=2 {beat:1}
-**1** 台本を書く
-話すことと
-画面に出すこと
+:::step n=1 of=3 area=left {beat:1}
+台本を書く
+話すことと、画面に出すことを
+Markdown で書くだけ
 :::
 :::editor src=../duo/http-status.md lines=37-48 area=right beats=12 {beat:2}
 :::
 
 ## 2 動かす beats=16 transition=slide
 :::backdrop style=gradient :::
-:::kinetic style=slide mode=stack area=left every=2 {beat:1}
-**2** コマンド1つ
-声・字幕・画面・
-曲までまとめて
+:::step n=2 of=3 area=left {beat:1}
+コマンドひとつ
+声・字幕・画面・曲まで
+まとめて動画に
 :::
 :::terminal area=right title="~/videos" {beat:2}
 $ gmm build http-status.md
@@ -56,10 +56,10 @@ $ gmm build http-status.md
 
 ## 3 直す beats=16 transition=slide
 :::backdrop style=gradient :::
-:::kinetic style=slide mode=stack area=left every=2 {beat:1}
-**3** AI が検査して
-はみ出し・重なりを
-自分で直す
+:::step n=3 of=3 area=left {beat:1}
+AI が直す
+はみ出し・重なりを検査して
+台本を自分で直す
 :::
 :::terminal area=right title="Claude Code" every=1.5 {beat:2}
 $ gmm check http-status.md

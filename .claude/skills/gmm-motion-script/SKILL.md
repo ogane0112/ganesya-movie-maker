@@ -18,7 +18,7 @@ description: gmm のモーション動画（layout: motion。製品・技術の�
 
 | 型 | 拍と場面 | 曲 | よく使う部品 |
 | --- | --- | --- | --- |
-| 紹介（ローンチ） | 120 BPM、手順の場面は 16 拍 | `synth:drive` | hero → kinetic（問い）→ 手順ごとに kinetic（左）＋ editor / terminal（右）→ clip（できたもの）→ features → hero |
+| 紹介（ローンチ） | 120 BPM、手順の場面は 16 拍 | `synth:drive` | hero → kinetic（問い）→ 手順ごとに step（左）＋ editor / terminal（右）→ clip（できたもの）→ features → hero |
 | MV 風 | 120〜128 BPM、8 拍ごとに場面、言葉は 1〜2 拍ごと | `synth:drive` / `synth:tech` | kinetic（replace / stack）・backdrop・three |
 | データ・歴史の物語 | 80〜100 BPM、場面はナレーションに合わせる（beats= を書かない） | `synth:chill` / `synth:epic` | history・counter・chart・kinetic（締めの問い） |
 | 3D・エフェクト | 120〜130 BPM、場面は 8 拍 | `synth:tech` / `synth:epic` | three・custom（3D）・hero |
@@ -26,7 +26,8 @@ description: gmm のモーション動画（layout: motion。製品・技術の�
 ### 製品・道具の紹介で必ずやること
 
 - **使っている様子を見せる。** 文字だけで「便利」「すごい」と言わない。実物（`editor` で書くもの、`terminal` で動かすコマンドと出力、`clip` でできあがった動画、`shot` で画面写真）を見せる
-- 手順ごとに1場面。左に説明の文字（`kinetic mode=stack area=left`）、右に実物（`area=right`）
+- 手順ごとに1場面。左に手順の見出し（`:::step n=1 of=3 area=left`。題は短く、説明は1〜2行）、右に実物（`area=right`）。
+  手順の番号や題を `kinetic` の大きな文字で並べない（番号・題・説明の区別がつかず読みにくい）
 - ターミナルの出力は、実際に動かしたときの出力を短くして使う（でっち上げない）
 - 最後に「できること」（`features`）を3〜6個。1つは1行の説明つき
 

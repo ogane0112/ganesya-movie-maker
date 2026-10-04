@@ -151,6 +151,21 @@ gmm
 
 `preset=` は `cubes`（波打つ立方体）/ `globe`（点の地球儀）/ `particles`（渦を巻く粒）/ `rings`（回る輪）。
 
+### `:::step` 手順の見出し
+
+![step](motion/img/s16.png)
+
+```markdown
+:::step n=1 of=3 area=left
+台本を書く                       ← 1行目：題
+話すことと、画面に出すことを      ← 2行目から：短い説明
+Markdown で書くだけ
+:::
+```
+
+「STEP 01 / 03」の札・大きな題・説明・進み具合（3本の線のうち、いまの手順まで色が付く）を左寄せで出す。
+手順を見せる場面で、右の実物（`editor` / `terminal`）と並べる。
+
 ### `:::terminal` ターミナル
 
 ![terminal](motion/img/s13.png)
@@ -206,7 +221,7 @@ $ gmm build launch.md                 ← $ の行は1文字ずつ打ち込ま�
 何ができて、どう使うのかを**使っている様子**で見せる（`examples/motion/launch.md`）：
 
 1. つかみ（`hero`）→ 問い（`kinetic`）
-2. 手順ごとに「左に説明の文字（`kinetic mode=stack area=left`）、右に実物（`editor` / `terminal`）」
+2. 手順ごとに「左に手順の見出し（`step area=left`）、右に実物（`editor` / `terminal`）」
 3. できたもの（`clip` を四隅に並べる）
 4. できること（`features`）→ 締め（`hero`）
 

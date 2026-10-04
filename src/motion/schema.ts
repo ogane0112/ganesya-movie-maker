@@ -150,7 +150,18 @@ export const FeaturesElement = z.object({
   ...When,
 });
 
+/** 手順の見出し（STEP 1 / 3・大きな題・短い説明・進み具合） */
+export const StepElement = z.object({
+  type: z.literal("step"),
+  n: z.number().int().min(1),
+  of: z.number().int().min(1).optional(),
+  title: z.string(),
+  text: z.string().optional(),
+  ...When,
+});
+
 export const MotionElement = z.discriminatedUnion("type", [
+  StepElement,
   TerminalElement,
   EditorElement,
   ClipElement,
@@ -188,6 +199,7 @@ export type ResolvedMotionElement =
   | (Timed<Omit<z.infer<typeof TerminalElement>, "lines">> & { lines: { text: string; from: number }[] })
   | Timed<z.infer<typeof EditorElement>>
   | Timed<z.infer<typeof ClipElement>>
+  | Timed<z.infer<typeof StepElement>>
   | (Timed<Omit<z.infer<typeof FeaturesElement>, "items">> & { items: { title: string; text: string; from: number }[] })
   /** id: 場面コードの登録名（remotion/.generated/custom.ts） */
   | (Timed<z.infer<typeof CustomElement>> & { id: string });

@@ -271,3 +271,57 @@ export const Features: React.FC<PartProps<"features">> = ({ el, frame, fps, widt
     </div>
   );
 };
+
+// ---- step ----
+
+/** 手順の見出し。左寄せで、STEP の番号・大きな題・短い説明・進み具合の順に出る */
+export const Step: React.FC<PartProps<"step">> = ({ el, frame, fps, fpb, width, palette }) => {
+  if (frame < el.from) return null;
+  const f = frame - el.from;
+  const a1 = ease(f, fpb * 0.5);
+  const a2 = pop(f - fpb * 0.25, fps, 16);
+  const a3 = ease(f - fpb * 0.75, fpb * 0.6);
+  const of = el.of ?? el.n;
+  const num = (v: number) => String(v).padStart(2, "0");
+  return (
+    <div data-gmm-el="backdrop" style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", justifyContent: "center", gap: 28, paddingRight: width * 0.04 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 18, opacity: a1, transform: `translateX(${(1 - a1) * -30}px)` }}>
+        <div
+          data-gmm-text
+          style={{ fontFamily: palette.numberFontFamily, fontWeight: 800, fontSize: 30, letterSpacing: "0.18em", color: palette.background, background: palette.accent, padding: "6px 18px", borderRadius: 999 }}
+        >
+          STEP {num(el.n)}
+        </div>
+        <div data-gmm-text style={{ fontFamily: palette.numberFontFamily, fontWeight: 600, fontSize: 30, letterSpacing: "0.12em", color: palette.subtext }}>
+          / {num(of)}
+        </div>
+      </div>
+      <div
+        data-gmm-text
+        style={{
+          fontFamily: palette.displayFontFamily,
+          fontWeight: 900,
+          fontSize: Math.min(112, Math.floor((width * 0.95) / Math.max(4, [...el.title].length))),
+          lineHeight: 1.15,
+          color: palette.text,
+          opacity: Math.min(1, a2 * 1.4),
+          transform: `translateY(${(1 - a2) * 30}px)`,
+          textShadow: "0 6px 40px rgba(0,0,0,0.45)",
+        }}
+      >
+        {el.title}
+      </div>
+      {el.text && (
+        <div data-gmm-text style={{ fontSize: 42, lineHeight: 1.5, fontWeight: 500, color: palette.subtext, whiteSpace: "pre-line", opacity: a3 }}>
+          {el.text}
+        </div>
+      )}
+      {/* 進み具合（いまの手順まで色が付く） */}
+      <div style={{ display: "flex", gap: 12, marginTop: 12, opacity: a1 }}>
+        {Array.from({ length: of }, (_, i) => (
+          <div key={i} style={{ width: 72, height: 8, borderRadius: 4, background: i < el.n ? palette.accent : "rgba(255,255,255,0.15)" }} />
+        ))}
+      </div>
+    </div>
+  );
+};

@@ -117,6 +117,11 @@ export function buildMotionElement(kind: string, argsSrc: string, body: string[]
         return { type: kind, src: p.src, frame: p.frame, zoom: num(p.zoom, "zoom"), caption: items(body).join(" ") || undefined, ...base };
       case "three":
         return { type: kind, preset: p.preset, ...base };
+      case "step": {
+        const lines = items(body);
+        if (p.n === undefined || !lines.length) throw new Error(":::step には n=番号 と、1行目に題（2行目から説明）が必要です");
+        return { type: kind, n: num(p.n, "n"), of: num(p.of, "of"), title: lines[0], text: lines.slice(1).join("\n") || undefined, ...base };
+      }
       case "terminal":
         return { type: kind, title: p.title, every: num(p.every, "every"), lines: body.filter((l) => l.trim()).map((l) => takeTiming(l.replace(/^\s{0,}/, ""))), ...base };
       case "editor": {
@@ -169,7 +174,7 @@ export function buildMotionElement(kind: string, argsSrc: string, body: string[]
       }
       default:
         throw new Error(
-          `未知の部品 :::${kind}（モーション動画で使えるのは kinetic / counter / chart / history / hero / backdrop / shot / three / terminal / editor / clip / features / custom）`,
+          `未知の部品 :::${kind}（モーション動画で使えるのは step / kinetic / counter / chart / history / hero / backdrop / shot / three / terminal / editor / clip / features / custom）`,
         );
     }
   })();
