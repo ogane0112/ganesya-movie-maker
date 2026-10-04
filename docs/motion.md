@@ -218,12 +218,15 @@ $ gmm build launch.md                 ← $ の行は1文字ずつ打ち込ま�
 
 ## 製品紹介の組み立て方
 
-何ができて、どう使うのかを**使っている様子**で見せる（`examples/motion/launch.md`）：
+何ができて、どう使うのかを**使っている様子**で見せる。先に場面ごとの役割（話の流れ）を書き、
+各場面が前の場面の「次に知りたいこと」に答えるように並べる（`examples/motion/launch.md` の冒頭のコメント）：
 
-1. つかみ（`hero`）→ 問い（`kinetic`）
-2. 手順ごとに「左に手順の見出し（`step area=left`）、右に実物（`editor` / `terminal`）」
-3. できたもの（`clip` を四隅に並べる）
-4. できること（`features`）→ 締め（`hero`）
+1. 動機 → 困りごと（`kinetic`・`features`）→ つなぎ「そこで」
+2. 解決：ここで初めて名前を出す（`hero`）
+3. 全体像：「やることは3つだけ」（`features`）
+4. 手順ごとに「左に手順の見出し（`step area=left`）、右に実物（`editor` / `terminal`）」
+5. つなぎ「すると」→ 結果（`clip` を四隅に並べる）
+6. ほかにできること（`features`）→ 締め（`hero`）
 
 ## フォント
 
@@ -284,5 +287,6 @@ export default function OrbitWords({ frame, width, height, beat, palette, props 
 - 字幕と文字が重なっていないか（ナレーションがあるとき）
 - ナレーションが `beats=` の長さに収まっているか（`motion-narration-long`）
 - 大きな文字が長すぎないか（`kinetic-long`）、入れ替わりが速すぎないか（`kinetic-fast`、0.4 秒未満）
+- 別々の部品の文字が重なっていないか（`text-overlap`）
 
 `gmm frames <台本> --steps` で、部品が出るたびの画面を撮れる。

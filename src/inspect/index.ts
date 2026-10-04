@@ -11,7 +11,7 @@ import { chromium, type Page } from "playwright-core";
 import { findBrowser } from "../browser.js";
 import { bundleAliases, nodeModulesDir } from "../motion/custom.js";
 import type { ResolvedScene, Timeline } from "../schema.js";
-import { checkBiimScene, checkFaces, checkLayout, checkMotionScene, checkScene, checkSubtitle, checkTerms, type Issue } from "./rules.js";
+import { checkBiimScene, checkFaces, checkLayout, checkMotionScene, checkScene, checkSubtitle, checkTerms, checkTextOverlap, type Issue } from "./rules.js";
 
 const here = dirname(fileURLToPath(import.meta.url));
 
@@ -180,7 +180,9 @@ async function checkMotionFrames(session: InspectSession, scene: ResolvedScene, 
   for (const f of scene.checkFrames ?? [scene.durationInFrames - 1]) {
     await session.show(scene.start + f);
     const m = await session.page.evaluate(() => window.gmm.measure());
-    push(checkLayout(m, `${label}（${(f / timeline.motion!.framesPerBeat + 1).toFixed(1)}拍目）`, { texts: true }));
+    const at = `${label}（${(f / timeline.motion!.framesPerBeat + 1).toFixed(1)}拍目）`;
+    push(checkLayout(m, at, { texts: true }));
+    push(checkTextOverlap(m.texts, scene.id, at));
   }
   for (const s of scene.sentences) {
     await session.show(scene.start + s.from + 1);

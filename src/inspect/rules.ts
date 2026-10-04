@@ -264,6 +264,38 @@ export function checkBiimScene(scene: ResolvedScene, timeline: Timeline, isLast:
   return issues;
 }
 
+/**
+ * モーション動画：別々の文字が重なっていないか（部品は層なので、上下に重ねた文字がぶつかることがある）。
+ * 片方がもう片方を含む（入れ子の）ときは数えない
+ */
+export function checkTextOverlap(texts: Measurement["texts"], sceneId: string, label: string): Issue[] {
+  const issues: Issue[] = [];
+  const area = (r: { width: number; height: number }) => r.width * r.height;
+  for (let i = 0; i < texts.length; i++) {
+    for (let j = i + 1; j < texts.length; j++) {
+      const a = texts[i].rect;
+      const b = texts[j].rect;
+      if (!area(a) || !area(b)) continue;
+      const w = Math.min(a.x + a.width, b.x + b.width) - Math.max(a.x, b.x);
+      const h = Math.min(a.y + a.height, b.y + b.height) - Math.max(a.y, b.y);
+      if (w <= 0 || h <= 0) continue;
+      const inside = w * h >= Math.min(area(a), area(b)) - 1;
+      if (inside) continue;
+      // 小さいほうの 15% 以上が重なっていたら知らせる
+      if ((w * h) / Math.min(area(a), area(b)) > 0.15) {
+        issues.push({
+          severity: "warn",
+          sceneId,
+          rule: "text-overlap",
+          message: `${label}: 文字「${texts[i].text.slice(0, 12)}」と「${texts[j].text.slice(0, 12)}」が重なっています`,
+          hint: "area= で置き場所を分けるか、出す拍をずらすか、場面を分けてください",
+        });
+      }
+    }
+  }
+  return issues;
+}
+
 /** モーション動画の場面の検査（画面を測らずにわかるもの） */
 export function checkMotionScene(scene: ResolvedScene, timeline: Timeline): Issue[] {
   const { fps } = timeline.meta;

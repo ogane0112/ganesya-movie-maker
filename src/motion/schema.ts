@@ -146,7 +146,7 @@ export const FeaturesElement = z.object({
   type: z.literal("features"),
   items: z.array(z.object({ title: z.string(), text: z.string().default(""), ...When })).min(1),
   every: z.number().positive().default(1),
-  columns: z.number().int().min(1).max(4).optional(),
+  columns: z.number().int().min(1).max(6).optional(),
   ...When,
 });
 

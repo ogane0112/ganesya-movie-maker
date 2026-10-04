@@ -227,7 +227,8 @@ export const Features: React.FC<PartProps<"features">> = ({ el, frame, fps, widt
   const rows = Math.ceil(n / cols);
   const gap = 28;
   const cw = (width - gap * (cols - 1)) / cols;
-  const ch = Math.min(260, (height - gap * (rows - 1)) / rows);
+  // 説明のないカードは低くする（題だけで中が空かないように）
+  const ch = Math.min(el.items.some((it) => it.text) ? 260 : 150, (height - gap * (rows - 1)) / rows);
   const top = (height - (rows * ch + gap * (rows - 1))) / 2;
   return (
     <div data-gmm-el="backdrop" style={{ position: "absolute", inset: 0 }}>

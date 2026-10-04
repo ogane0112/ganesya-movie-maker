@@ -18,10 +18,21 @@ description: gmm のモーション動画（layout: motion。製品・技術の�
 
 | 型 | 拍と場面 | 曲 | よく使う部品 |
 | --- | --- | --- | --- |
-| 紹介（ローンチ） | 120 BPM、手順の場面は 16 拍 | `synth:drive` | hero → kinetic（問い）→ 手順ごとに step（左）＋ editor / terminal（右）→ clip（できたもの）→ features → hero |
+| 紹介（ローンチ） | 120 BPM、手順の場面は 16 拍 | `synth:drive` | kinetic（動機・困りごと）→ hero（解決）→ features（全体像）→ 手順ごとに step（左）＋ editor / terminal（右）→ clip（結果）→ features → hero |
 | MV 風 | 120〜128 BPM、8 拍ごとに場面、言葉は 1〜2 拍ごと | `synth:drive` / `synth:tech` | kinetic（replace / stack）・backdrop・three |
 | データ・歴史の物語 | 80〜100 BPM、場面はナレーションに合わせる（beats= を書かない） | `synth:chill` / `synth:epic` | history・counter・chart・kinetic（締めの問い） |
 | 3D・エフェクト | 120〜130 BPM、場面は 8 拍 | `synth:tech` / `synth:epic` | three・custom（3D）・hero |
+
+### 先に「話の流れ」を書く（必ず）
+
+部品を選ぶ前に、場面ごとの役割を1行ずつ書き、台本の頭のコメントに残す（`examples/motion/launch.md` の冒頭）。
+
+- 各場面は、**前の場面を見た人が次に知りたいこと**に答える。問いを出したら、次の場面でその答えを出す
+- 話の向きが変わる所には、つなぎの場面を置く（「でも」「そこで」「すると」「ほかにも」）。いきなり手順や機能に入らない
+- 手順に入る前に、全体像（「やることは3つだけ」）を見せる
+- 書き終えたら、場面の見出しだけを上から読み、それだけで話が通じるか確かめる
+
+製品紹介の型：動機 → 困りごと → （つなぎ）→ 解決（ここで名前を出す）→ 全体像 → 手順 → （つなぎ）→ 結果 → ほかにできること → 締め
 
 ### 製品・道具の紹介で必ずやること
 
