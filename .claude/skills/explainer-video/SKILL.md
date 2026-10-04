@@ -22,6 +22,8 @@ description: gmm で技術・学習系の解説動画（ずんだもんの立ち
   なければ利用者に立ち絵 PSD を頼み、`./bin/gmm.mjs character import <psd> characters/zundamon` で取り込む。
   用意できなければ `character: builtin`（組み込みキャラ）で進め、そのことを伝える
 - 誰向けの動画か（前提知識）と、長さの目安（既定は 3〜5 分）がわからなければ聞く
+- 「掛け合いで」「2人で」と頼まれたら、ずんだもん（解説役）と四国めたん（聞き役）の掛け合いにする
+  （書き方は [references/script-format.md](references/script-format.md) の「掛け合い」。めたんの立ち絵は `characters/metan/`）
 
 ### Marp スライドがあるとき
 

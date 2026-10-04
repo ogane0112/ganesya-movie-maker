@@ -1,9 +1,9 @@
 // F14: 立ち絵。口パクは音素タイミング、まばたきは決まった間隔（乱数は使わない）。
 import { Img, interpolate, staticFile, useCurrentFrame } from "remotion";
-import type { ResolvedCharacter, Timeline } from "../src/schema";
+import type { CastMember, ResolvedCharacter, Timeline } from "../src/schema";
 import { BuiltinCharacter } from "./parts/BuiltinCharacter";
 import { BUILTIN_PALETTES } from "./builtinCharacter";
-import { CHARACTER_MARGIN } from "./layout";
+import { CHARACTER_MARGIN, DUO_CHARACTER, duoWidth } from "./layout";
 
 
 /** まばたきの間隔（30fps 換算のフレーム数）。順に繰り返す */
@@ -152,3 +152,61 @@ export function bustAspect(character: ResolvedCharacter, bust: boolean | number 
   const r = bustRatio(character, bust);
   return character.kind === "builtin" ? 340 / (500 * r) : character.crop.width / (character.crop.height * r);
 }
+
+/** 掛け合いでの、その話者のいまの表情・口・話しているか（動画全体のフレームで数える） */
+export function speakerState(timeline: Timeline, member: CastMember, frame: number) {
+  let face = timeline.segment?.initialFaces?.[member.name] ?? member.character?.defaultFace ?? "normal";
+  let mouthOpen = false;
+  let speaking = false;
+  for (const scene of timeline.scenes) {
+    if (scene.start > frame) break;
+    for (const s of scene.sentences) {
+      const from = scene.start + s.from;
+      if (from > frame) break;
+      if (s.speaker !== member.name) continue;
+      face = s.face ?? face;
+      if (frame < from + s.durationInFrames) speaking = true;
+      if (s.mouth.some(([a, b]) => frame >= scene.start + a && frame < scene.start + b)) mouthOpen = true;
+    }
+  }
+  return { face, mouthOpen, speaking };
+}
+
+/** 解説動画の掛け合い：1人目を左、2人目を右に立て、向かい合わせる。話している人は明るく、少し揺れる */
+export const DuoCast: React.FC<{ timeline: Timeline }> = ({ timeline }) => {
+  const frame = useCurrentFrame();
+  const { fps } = timeline.meta;
+  const members = (timeline.cast ?? []).filter((m) => m.character).slice(0, 2);
+  const enter = (timeline.segment?.index ?? 0) > 0 ? 1 : interpolate(frame, [0, 12], [0, 1], { extrapolateRight: "clamp" });
+  return (
+    <>
+      {members.map((m, i) => {
+        const ch = m.character!;
+        const side = i === 0 ? "left" : "right";
+        const { face, mouthOpen, speaking } = speakerState(timeline, m, frame);
+        const facing = ch.kind === "layers" ? ch.facing : undefined;
+        const flip = (side === "left" && facing === "left") || (side === "right" && facing === "right");
+        const bob = speaking ? Math.sin((frame / fps) * Math.PI * 2 * 0.8) * 4 : 0;
+        return (
+          <div
+            key={m.name}
+            data-gmm-el="character"
+            style={{
+              position: "absolute",
+              bottom: 0,
+              [side]: DUO_CHARACTER.inset,
+              width: duoWidth(ch),
+              height: DUO_CHARACTER.height,
+              opacity: enter,
+              transform: `translateY(${(1 - enter) * 40 + bob}px) scaleX(${flip ? -1 : 1})`,
+              transformOrigin: "bottom center",
+              filter: speaking ? "none" : "brightness(0.85)",
+            }}
+          >
+            <CharacterArt character={ch} face={face} mouthOpen={mouthOpen} blink={isBlinking(frame + i * 47, fps)} />
+          </div>
+        );
+      })}
+    </>
+  );
+};

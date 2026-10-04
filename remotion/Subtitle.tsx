@@ -1,10 +1,15 @@
 // F8: 焼き込み字幕。文の開始から次の文の開始まで表示する（文の間で消えてちらつかないように）。
 import { useCurrentFrame } from "remotion";
-import type { ResolvedScene } from "../src/schema";
+import type { CastMember, ResolvedScene } from "../src/schema";
 import type { Layout } from "./layout";
 import type { Theme } from "./theme";
 
-export const Subtitle: React.FC<{ scene: ResolvedScene; box: NonNullable<Layout["subtitle"]>; theme: Theme }> = ({ scene, box, theme }) => {
+export const Subtitle: React.FC<{ scene: ResolvedScene; box: NonNullable<Layout["subtitle"]>; theme: Theme; cast?: CastMember[] }> = ({
+  scene,
+  box,
+  theme,
+  cast,
+}) => {
   const frame = useCurrentFrame();
   const i = scene.sentences.findLastIndex((s) => s.from <= frame);
   const s = scene.sentences[i];
@@ -13,6 +18,8 @@ export const Subtitle: React.FC<{ scene: ResolvedScene; box: NonNullable<Layout[
   const last = i === scene.sentences.length - 1;
   if (last && frame >= s.from + s.durationInFrames + 9) return null;
   const st = theme.subtitle;
+  // 掛け合いでは、字幕の枠を話者の色にし、名札を付ける
+  const member = cast?.find((c) => c.name === s.speaker);
   return (
     <div
       data-gmm-subtitle
@@ -41,9 +48,29 @@ export const Subtitle: React.FC<{ scene: ResolvedScene; box: NonNullable<Layout[
           padding: "6px 32px",
           maxWidth: "100%",
           boxSizing: "border-box",
+          position: "relative",
+          ...(member && { border: `4px solid ${member.color}` }),
           textShadow: st.stroke === "none" ? undefined : outline(Math.max(3, Math.round(st.fontSize / 9)), st.stroke),
         }}
       >
+        {member && (
+          <div
+            style={{
+              position: "absolute",
+              top: -20,
+              [cast!.indexOf(member) === 1 ? "right" : "left"]: 20,
+              fontSize: 24,
+              lineHeight: "34px",
+              padding: "0 12px",
+              borderRadius: 8,
+              background: member.color,
+              color: "#fff",
+              textShadow: "none",
+            }}
+          >
+            {member.name}
+          </div>
+        )}
         {s.text}
       </div>
     </div>

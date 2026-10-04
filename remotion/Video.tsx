@@ -7,8 +7,8 @@ import { AbsoluteFill, Audio, Sequence, continueRender, delayRender, staticFile 
 import type { ResolvedElement, ResolvedScene, Timeline } from "../src/schema";
 import type { Theme } from "./theme";
 import { appearStyle, useAppear } from "./anim";
-import { Character } from "./Character";
-import { computeLayout, type Layout } from "./layout";
+import { Character, DuoCast } from "./Character";
+import { computeLayout, duoCharacters, type Layout } from "./layout";
 import { BiimScene } from "./biim/BiimScene";
 import { Sound } from "./Sound";
 import { Subtitle } from "./Subtitle";
@@ -70,12 +70,13 @@ export const Video: React.FC<VideoProps> = ({ timeline, withAudio = true }) => {
         </Sequence>
       ))}
       {ch && <Character timeline={timeline} character={ch} />}
+      {duoCharacters(timeline) && <DuoCast timeline={timeline} />}
       {withAudio && <Sound timeline={timeline} />}
       {layout.subtitle &&
         !timeline.run &&
         timeline.scenes.map((scene) => (
           <Sequence key={scene.id} from={scene.start} durationInFrames={scene.durationInFrames} layout="none">
-            <Subtitle scene={scene} box={layout.subtitle!} theme={theme} />
+            <Subtitle scene={scene} box={layout.subtitle!} theme={theme} cast={timeline.cast} />
           </Sequence>
         ))}
     </AbsoluteFill>
@@ -94,7 +95,7 @@ const SceneView: React.FC<{ scene: ResolvedScene; theme: Theme; layout: Layout }
           </div>
         </div>
       )}
-      <div data-gmm-content style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column", gap: 48, marginRight: layout.reserveRight, marginBottom: layout.reserveBottom }}>
+      <div data-gmm-content style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column", gap: 48, marginRight: layout.reserveRight, marginLeft: layout.reserveLeft, marginBottom: layout.reserveBottom }}>
         {scene.elements.map((el, i) => (
           <ElementView key={i} el={el} theme={theme} />
         ))}

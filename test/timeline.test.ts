@@ -76,3 +76,40 @@ describe("richText", () => {
     expect(() => richText("$\\frac{1}{$")).toThrow("数式を描けません");
   });
 });
+
+describe("掛け合い（解説動画）", () => {
+  const src = `---\nspeakers:\n  めたん: metan\n  ずんだもん: zundamon\n---\n## A\n\nずんだもん: {face:smile}一。二。\nめたん: {face:think}三。\n{face:normal}四。\n\n## B\n\nずんだもん: 五。\n`;
+  const d = parseScript(src);
+
+  it("話者: で話者が変わり、書かない行は直前の話者", () => {
+    expect(d.scenes[0].sentences.map((s) => [s.speaker, s.text])).toEqual([
+      ["ずんだもん", "一。"],
+      ["ずんだもん", "二。"],
+      ["めたん", "三。"],
+      ["めたん", "四。"],
+    ]);
+    expect(d.scenes[1].sentences[0].speaker).toBe("ずんだもん");
+  });
+
+  it("話者のない最初の文はエラー", () => {
+    expect(() => parseScript(`---\nspeakers:\n  めたん: metan\n---\n## A\n\n話者なし。\n`)).toThrow("文の頭に話者");
+  });
+
+  it("表情は話者ごとに続く", async () => {
+    const au: AudioTiming = {
+      provider: "silent",
+      voice: "zundamon",
+      sentences: d.scenes.flatMap((s) => s.sentences.map((x, i) => ({ sceneId: s.id, index: i, text: x.text, file: "a", seconds: 1, mouth: [] }))),
+    };
+    const cast = [
+      { name: "めたん", color: "#c2508e" },
+      { name: "ずんだもん", color: "#4f9a3c" },
+    ];
+    const t = await buildTimeline(d, au, THEMES.wakaba, undefined, {}, cast);
+    expect(t.cast).toEqual(cast);
+    expect(t.character).toBeUndefined();
+    const faces = t.scenes.flatMap((s) => s.sentences.map((x) => x.face));
+    // ずんだもんの smile は めたんの文をはさんでも B まで続く
+    expect(faces).toEqual(["smile", "smile", "think", "normal", "smile"]);
+  });
+});

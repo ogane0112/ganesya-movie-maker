@@ -36,6 +36,29 @@ readings:                # 読みの辞書（字幕は表記のまま）
 ずんだもんの表情: normal / smile / surprised / troubled / think / angry
 （組み込みキャラは angry がなく normal / smile / surprised / troubled / think。ずんだもんの表情は `characters/zundamon/character.json` で増やせる）
 
+## 掛け合い（2人で話す）
+
+```markdown
+---
+speakers:                # 話者: VOICEVOX の声（1人目が左、2人目が右に立つ）
+  めたん: metan
+  ずんだもん: zundamon
+characters:              # 話者: 立ち絵
+  めたん: metan
+  ずんだもん: zundamon
+---
+
+## 見出し
+
+ずんだもん: {face:smile}説明する文なのだ。
+続けて同じ人が話す文なのだ。      ← 話者を書かない行は直前の話者
+めたん: {face:think}聞き返す文ね。
+```
+
+- 役割の目安：ずんだもん = 解説役、四国めたん = 聞き役（疑問・まとめ・ツッコミ）。聞き役の問いで話を進める
+- 表情は話者ごとに続く。四国めたんの表情: normal / smile / surprised / troubled / think / angry
+- 部品は2人の間（中央）に出るので、1人のときより横幅が狭い。コードは 1 行 50 文字くらいまでにする
+
 ## 部品
 
 `{n}` = n 番目の文が始まるときに出す（省略時はシーン冒頭）。`{!n}` = n 番目の文で強調する。

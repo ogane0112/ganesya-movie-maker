@@ -59,12 +59,15 @@ export async function prepare(input: string, opts: PipelineOptions): Promise<{ d
     requireVoice: opts.requireVoice,
   });
   if (doc.meta.layout === "biim") return prepareBiim(doc, audio, input, outDir, opts);
-  const character = await loadCharacter(doc, input, outDir);
+  // 掛け合い（speakers:）なら話者ごとの立ち絵、そうでなければ character: の1人
+  const duo = Object.keys(doc.meta.speakers).length > 0;
+  const cast = duo ? await loadCast(doc, input, outDir) : undefined;
+  const character = duo ? undefined : await loadCharacter(doc, input, outDir);
   const theme = await loadTheme(doc.meta.theme, input, outDir);
   const audioAssets = await prepareAudioAssets(doc.meta, input, outDir, { strict: opts.requireVoice, log: opts.log });
-  const timeline = await buildTimeline(doc, audio, theme, character, audioAssets);
-  const credits = [audio.credit, character?.credit, audioAssets.bgm?.credit].filter(Boolean);
-  await writeFile(join(outDir, "credits.txt"), credits.join("\n") + (credits.length ? "\n" : ""));
+  const timeline = await buildTimeline(doc, audio, theme, character, audioAssets, cast);
+  const credits = [audio.credit, character?.credit, ...(cast ?? []).map((c) => c.character?.credit), audioAssets.bgm?.credit].filter(Boolean);
+  await writeFile(join(outDir, "credits.txt"), [...new Set(credits)].join("\n") + (credits.length ? "\n" : ""));
   await writeFile(join(outDir, "timeline.json"), JSON.stringify(timeline, null, 2));
   if (doc.meta.subtitles !== "none") await writeFile(join(outDir, "subtitles.srt"), toSrt(timeline));
   opts.log(`タイムライン: ${timeline.scenes.length}シーン / ${(timeline.durationInFrames / timeline.meta.fps).toFixed(1)}秒`);

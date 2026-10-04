@@ -5,6 +5,7 @@ import { codeToTokens } from "shiki";
 import type { Theme } from "../remotion/theme.js";
 import type {
   AudioTiming,
+  CastMember,
   Element,
   ResolvedCharacter,
   ResolvedElement,
@@ -23,6 +24,8 @@ export async function buildTimeline(
   theme: Theme,
   character?: ResolvedCharacter,
   audioAssets: TimelineAudio = {},
+  /** 掛け合い（speakers:）の話者。あれば立ち絵・表情は話者ごと */
+  cast?: CastMember[],
 ): Promise<Timeline> {
   const { fps } = doc.meta;
   const sec = (s: number) => Math.round(s * fps);
@@ -30,6 +33,8 @@ export async function buildTimeline(
   const scenes: ResolvedScene[] = [];
   let start = 0;
   let face = character?.defaultFace;
+  // 掛け合いでは表情は話者ごとに続く
+  const faceOf: Record<string, string | undefined> = {};
   for (const scene of doc.scenes) {
     const clips = audio.sentences.filter((a) => a.sceneId === scene.id).sort((a, b) => a.index - b.index);
     if (clips.length !== scene.sentences.length) {
@@ -40,14 +45,25 @@ export async function buildTimeline(
       const from = i === 0 ? cursor : cursor + sec(PACING.gap);
       const durationInFrames = Math.max(1, Math.ceil(c.seconds * fps));
       cursor = from + durationInFrames;
-      face = scene.sentences[i].face ?? face; // 表情は次の指定まで続く
+      const speaker = scene.sentences[i].speaker;
+      if (cast && speaker) faceOf[speaker] = scene.sentences[i].face ?? faceOf[speaker];
+      else face = scene.sentences[i].face ?? face; // 表情は次の指定まで続く
       const mouth = c.mouth.map(([a, b]): [number, number] => [from + Math.round(a * fps), from + Math.max(Math.round(b * fps), Math.round(a * fps) + 1)]);
       const explains = [
         ...(scene.sentences[i].explains ?? []),
         // 用語カードは、出る文（省略時は1文目）でその用語を説明したことにする
         ...scene.elements.filter((e) => e.type === "term" && (e.at ?? 1) === i + 1).map((e) => (e as { term: string }).term),
       ];
-      return { text: c.text, from, durationInFrames, audio: c.file, face, mouth, ...(explains.length && { explains }) };
+      return {
+        text: c.text,
+        from,
+        durationInFrames,
+        audio: c.file,
+        face: cast && speaker ? faceOf[speaker] : face,
+        mouth,
+        ...(speaker && { speaker }),
+        ...(explains.length && { explains }),
+      };
     });
     const durationInFrames = cursor + sec(PACING.tail);
     const at = (n: number | undefined) => (n === undefined ? 0 : sentences[n - 1].from);
@@ -66,7 +82,7 @@ export async function buildTimeline(
     });
     start += durationInFrames;
   }
-  return { meta: doc.meta, theme, audio: audioAssets, durationInFrames: start, scenes, character };
+  return { meta: doc.meta, theme, audio: audioAssets, durationInFrames: start, scenes, ...(cast ? { cast } : { character }) };
 }
 
 async function resolveElement(

@@ -8,6 +8,7 @@
 //   {face:smile}   文頭に書くと、その文から立ち絵の表情が変わる
 //   {表記|よみ}    字幕には表記、読み上げにはよみを使う（フロントマターの readings: で一括指定もできる）
 //   {term:用語}    文頭に書くと「この文で用語を説明している」という印（glossary: の用語の説明漏れを検査する）
+//   話者: 文       掛け合い（フロントマターの speakers: に話者を書いたとき）。書かない行は直前の話者
 import { Element, SceneDoc, type Scene } from "./schema.js";
 
 export class ScriptError extends Error {
@@ -48,11 +49,23 @@ export function parseScript(source: string): SceneDoc {
   let i = next;
 
   const scenes: Scene[] = [];
-  let current: { heading: string; line: number; narration: string[]; elements: { el: unknown; line: number }[] } | null = null;
+  let current: { heading: string; line: number; narration: { text: string; speaker?: string }[]; elements: { el: unknown; line: number }[] } | null = null;
+  // 掛け合い：speakers: に書いた話者。「話者: 文」で話者を切り替える（書かない行は直前の話者）
+  const speakers = Object.keys((meta.speakers ?? {}) as Record<string, string>);
+  let speaker: string | undefined;
 
   const flush = () => {
     if (!current) return;
-    const sentences = takeSentenceMarkers(splitSentences(current.narration.join("\n")));
+    // 同じ話者の続く行をまとめて文に分ける（印だけの行が次の文に付くように）
+    const groups: { speaker?: string; lines: string[] }[] = [];
+    for (const n of current.narration) {
+      const g = groups[groups.length - 1];
+      if (g && g.speaker === n.speaker) g.lines.push(n.text);
+      else groups.push({ speaker: n.speaker, lines: [n.text] });
+    }
+    const sentences = groups.flatMap((g) =>
+      takeSentenceMarkers(splitSentences(g.lines.join("\n"))).map((x) => ({ ...x, ...(g.speaker && { speaker: g.speaker }) })),
+    );
     const elements: Element[] = [];
     for (const { el, line } of current.elements) {
       const parsed = Element.safeParse(el);
@@ -110,7 +123,19 @@ export function parseScript(source: string): SceneDoc {
     }
     if (!current) continue; // 最初の見出しより前の地の文（# タイトルなど）は無視
     if (/^\s*<!--.*-->\s*$/.test(line)) continue;
-    if (line.trim()) current.narration.push(line.trim());
+    if (!line.trim()) continue;
+    let text = line.trim();
+    if (speakers.length) {
+      const said = text.match(/^([^:：\s{]{1,20})\s*[:：]\s*(.+)$/);
+      if (said && speakers.includes(said[1])) {
+        speaker = said[1];
+        text = said[2];
+      } else if (!speaker) {
+        problems.push(`${i + 1}行目: 文の頭に話者を書いてください（例: ${speakers[0]}: …）。使える話者: ${speakers.join("、")}`);
+        continue;
+      }
+    }
+    current.narration.push({ text, speaker });
   }
   flush();
 

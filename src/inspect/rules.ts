@@ -251,34 +251,40 @@ export function checkBiimScene(scene: ResolvedScene, timeline: Timeline, isLast:
   return issues;
 }
 
-/** 既定以外の表情（驚き・困りなど）が長く続きすぎていないか。表情は次の指定まで続くので、戻し忘れを見つける */
+/** 既定以外の表情（驚き・困りなど）が長く続きすぎていないか。表情は次の指定まで続くので、戻し忘れを見つける（掛け合いでは話者ごと） */
 export function checkFaces(t: Timeline): Issue[] {
-  const ch = t.character;
-  if (!ch) return [];
+  const who = t.cast?.length
+    ? t.cast.filter((m) => m.character).map((m) => ({ name: m.name as string | undefined, ch: m.character! }))
+    : t.character
+      ? [{ name: undefined, ch: t.character }]
+      : [];
   const issues: Issue[] = [];
-  let run: { face: string; count: number; sceneId: string; label: string } | undefined;
-  const flush = () => {
-    if (run && run.face !== ch.defaultFace && run.count > LIMITS.maxFaceSentences) {
-      issues.push({
-        severity: "warn",
-        sceneId: run.sceneId,
-        rule: "face-long",
-        message: `${run.label}: 表情「${run.face}」が${run.count}文続いています`,
-        hint: `表情は次の指定まで続きます。話の区切りで {face:${ch.defaultFace}} に戻してください`,
-      });
-    }
-  };
-  for (const scene of t.scenes) {
-    for (const s of scene.sentences) {
-      const face = s.face ?? ch.defaultFace;
-      if (run?.face === face) run.count++;
-      else {
-        flush();
-        run = { face, count: 1, sceneId: scene.id, label: `${scene.id}「${scene.heading}」から` };
+  for (const { name, ch } of who) {
+    let run: { face: string; count: number; sceneId: string; label: string } | undefined;
+    const flush = () => {
+      if (run && run.face !== ch.defaultFace && run.count > LIMITS.maxFaceSentences) {
+        issues.push({
+          severity: "warn",
+          sceneId: run.sceneId,
+          rule: "face-long",
+          message: `${run.label}: ${name ? `${name}の` : ""}表情「${run.face}」が${run.count}文続いています`,
+          hint: `表情は次の指定まで続きます。話の区切りで {face:${ch.defaultFace}} に戻してください`,
+        });
+      }
+    };
+    for (const scene of t.scenes) {
+      for (const s of scene.sentences) {
+        if (name && s.speaker !== name) continue;
+        const face = s.face ?? ch.defaultFace;
+        if (run?.face === face) run.count++;
+        else {
+          flush();
+          run = { face, count: 1, sceneId: scene.id, label: `${scene.id}「${scene.heading}」から` };
+        }
       }
     }
+    flush();
   }
-  flush();
   return issues;
 }
 
