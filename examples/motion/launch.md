@@ -2,7 +2,7 @@
 title: gmm 紹介
 layout: motion
 bpm: 120
-bgm: synth:drive
+bgm: maou:neorock54     # 明るく疾走感のあるネオロック。テンポは曲から測って場面をそろえる
 subtitles: none
 ---
 
