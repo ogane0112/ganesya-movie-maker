@@ -1,7 +1,7 @@
 // gmm: 台本から解説動画を作るCLI（F12: まずはCLI。MCPはこの上に薄くかぶせる）
 import { Command, Option } from "commander";
-import { writeFile } from "node:fs/promises";
-import { join } from "node:path";
+import { readFile, writeFile } from "node:fs/promises";
+import { basename, dirname, extname, join, relative, resolve } from "node:path";
 import { captureFrames, runChecks } from "./inspect/index.js";
 import { formatIssues } from "./inspect/rules.js";
 import { ScriptError } from "./parse.js";
@@ -13,6 +13,7 @@ import { defaultOutDir, loadSceneDoc, prepare, type PipelineOptions } from "./pi
 import { overviewFootage } from "./biim/footage.js";
 import { formatTime, parseTime } from "./biim/parse.js";
 import { preview, renderVideo } from "./render.js";
+import { marpToScript } from "./marp.js";
 
 // head などに渡して途中で閉じられても落ちないようにする
 process.stdout.on("error", (e: NodeJS.ErrnoException) => {
@@ -145,6 +146,30 @@ program
     }
     const missing = Object.keys(doc.meta.glossary).filter((t) => !findTermCandidates(doc).some((c) => c.word === t));
     if (missing.length) console.log(`\n（glossary にあるが上に出ない語: ${missing.join("、")}。漢字を含む語は gmm check で確かめてください）`);
+  });
+
+program
+  .command("marp")
+  .description("F11: Marp スライドを台本の下書きにする（1枚 = 1シーン。発表者ノートがナレーションになる）")
+  .argument("<slides>", "Marp のスライド（.md）")
+  .option("-o, --out <file>", "書き出す台本（既定: <スライド名>-video.md）")
+  .option("--voice <voice>", "声", "zundamon")
+  .option("--character <character>", "立ち絵", "zundamon")
+  .option("--force", "台本がすでにあっても上書きする")
+  .action(async (slides: string, o: { out?: string; voice: string; character: string; force?: boolean }) => {
+    const out = o.out ?? join(dirname(slides), `${basename(slides, extname(slides))}-video.md`);
+    if (existsSync(out) && !o.force) throw new Error(`${out} はすでにあります（上書きするなら --force）`);
+    const r = marpToScript(await readFile(slides, "utf8"), {
+      voice: o.voice,
+      character: o.character,
+      // 画像はスライドからの相対パス → 台本からの相対パス
+      imagePath: (src) => (/^(https?:|data:|\/)/.test(src) ? src : relative(dirname(resolve(out)), resolve(dirname(slides), src)) || src),
+    });
+    await writeFile(out, r.script);
+    console.log(out);
+    log(`${r.slides}枚 → ${r.scenes}シーン（うち ${r.drafted}シーンは発表者ノートがなく、ナレーションが仮のもの）`);
+    for (const t of r.todos) log(`要確認: ${t}`);
+    log("次: ナレーションを話し言葉に直す → gmm terms で用語を洗い出す → gmm check");
   });
 
 const bgm = program.command("bgm").description("BGM のカタログ（bgm/*.json）を扱う");
