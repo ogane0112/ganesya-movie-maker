@@ -1,6 +1,7 @@
 # ganesya-movie-maker (`gmm`)
 
-台本（Markdown）を書けば、解説動画（16:9・日本語ナレーション付き）や、ゲーム実況・RTA 動画（biim システム）を作るCLI。
+台本（Markdown）を書けば、解説動画（16:9・日本語ナレーション付き）や、ゲーム実況・RTA 動画（biim システム）、
+モーション動画（紹介・MV 風・データの物語・3D。曲もコードで合成）を作るCLI。
 要件は [docs/requirements.md](docs/requirements.md)。
 
 LLM が苦手な2点をツール側で肩代わりする：
@@ -168,6 +169,7 @@ characters:
 | `gmm-marp` | Marp スライド → 台本の下書き |
 | `gmm-explainer-script` | 解説動画の構成と台本（1人／掛け合い） |
 | `gmm-rta-script` | 録画の下見と、時刻付きの実況台本 |
+| `gmm-motion-script` | モーション動画の構成と台本（部品／場面のコード） |
 | `gmm-terms` | 専門用語の洗い出しと説明 |
 | `gmm-bgm` | BGM 選び |
 | `gmm-review` | 検査とキーフレームの目視で直す |
@@ -294,6 +296,30 @@ characters:                # 話者: 立ち絵（素材がなければ builtin-m
 - 録画の下見：`gmm footage <録画>` が N 秒ごとのコマを時刻付きの一覧画像にする。AI エージェントはこれを見て実況を下書きする
   （スキル `gmm-rta-script`）。仕組みを試す仮の録画は `examples/rta/make-sample-run.sh` で作れる。完成例は `examples/rta/sample-run.md`
 - 検査用のブラウザ（Playwright の Chromium）は H.264 を再生できないので、`check` / `frames` では録画のコマを ffmpeg で切り出して表示する。MP4 の書き出しには影響しない
+
+## モーション動画
+
+フロントマターに `layout: motion` と書くと、文字・数字・グラフ・3D が拍に合わせて動く動画になる（[docs/motion.md](docs/motion.md)）。
+
+```markdown
+---
+layout: motion
+bpm: 120
+bgm: synth:drive         # 曲をコードで合成（drive / tech / epic / chill）
+---
+
+## オープニング beats=8 transition=flash
+:::backdrop style=grid :::
+:::kinetic every=2
+動画づくり、
+**時間**かかる？
+:::
+```
+
+- 場面の長さは拍（`beats=`）か、ナレーションの長さを拍に切り上げたもの。切れ目が音のアタマにそろう
+- 組み込みの部品（`kinetic` `counter` `chart` `history` `hero` `backdrop` `shot` `three`）と、
+  AI が書く場面のコード（`:::custom src=scenes/x.tsx`。React / SVG / Three.js）を混ぜて使える
+- 見本：`examples/motion/`（launch・mv・data-story・showcase）
 
 ## テーマ
 

@@ -1,6 +1,6 @@
 ---
 name: gmm
-description: gmm（台本から動画を作る CLI）で動画を作る・直すときの司令塔。依頼の種類（解説動画・2人の掛け合い・スライドから・ゲーム実況/RTA・既存動画の修正）を見分け、工程ごとの機能スキル（gmm-setup / gmm-marp / gmm-explainer-script / gmm-rta-script / gmm-terms / gmm-bgm / gmm-review / gmm-render）を順に使って、MP4 を渡すまで進める。「〜の解説動画を作って」「このスライドを動画にして」「RTA動画を作って」「この録画に実況を付けて」「動画を直して」と頼まれたら最初にこれを使う。
+description: gmm（台本から動画を作る CLI）で動画を作る・直すときの司令塔。依頼の種類（解説動画・2人の掛け合い・スライドから・ゲーム実況/RTA・モーション動画（紹介・MV風・データの物語・3D）・既存動画の修正）を見分け、工程ごとの機能スキル（gmm-setup / gmm-marp / gmm-explainer-script / gmm-rta-script / gmm-motion-script / gmm-terms / gmm-bgm / gmm-review / gmm-render）を順に使って、MP4 を渡すまで進める。「〜の解説動画を作って」「このスライドを動画にして」「RTA動画を作って」「この録画に実況を付けて」「紹介動画を作って」「MVっぽい動画」「動画を直して」と頼まれたら最初にこれを使う。
 ---
 
 # gmm で動画を作る（司令塔）
@@ -16,6 +16,7 @@ description: gmm（台本から動画を作る CLI）で動画を作る・直す
 | 「2人で」「掛け合いで」 | 解説（掛け合い） | 同上（explainer-script の「掛け合い」で書く） |
 | Marp の `.md` を渡され「動画にして」 | スライドから | setup → **marp** → explainer-script（直す）→ terms → bgm → review → render |
 | 録画を渡され「RTA動画」「実況を付けて」 | ゲーム実況（`layout: biim`） | setup → **rta-script** → terms → bgm → review → render |
+| 「紹介動画」「MVっぽく」「モーショングラフィックス」「3Dで」「データを動きで見せたい」 | モーション動画（`layout: motion`） | （ナレーションがあれば setup）→ **motion-script** → （ナレーションがあれば terms）→ bgm → review → render |
 | 既存の台本・動画を「直して」 | 修正 | （指摘の内容に応じて script / terms / bgm）→ review → render |
 | 「BGMだけ選んで」など一部だけ | 単発 | その機能スキルだけ |
 
@@ -25,6 +26,7 @@ description: gmm（台本から動画を作る CLI）で動画を作る・直す
 
 - 解説：誰向けか（前提知識）、長さの目安（既定 3〜5 分）、1人か掛け合いか
 - ゲーム実況：録画の場所、ゲーム名、レギュレーション（Any% など）、計測の開始・終了の基準
+- モーション動画：型（紹介・MV 風・データの物語・3D）、長さ、ナレーションの有無、使う数字や画面写真（数字は出典を確かめる）
 - 台本の置き場所（指定がなければ `examples/`）
 - 聞かずに決めてよいこと：BGM の曲、表情、部品の選び方、シーンの分け方（決めた理由を最後に伝える）
 
@@ -33,7 +35,7 @@ description: gmm（台本から動画を作る CLI）で動画を作る・直す
 - 各機能スキルの「終わりの条件」を満たしてから次へ進む。満たせなければ、その工程に戻るか利用者に聞く
 - 台本を直したら、必ず `gmm-review` からやり直す（音声は変えた文だけ作り直されるので、何度回してもよい）
 - `gmm-review` が合格するまで `gmm-render` に進まない（`gmm build` は検査エラーがあれば MP4 を作らない）
-- 台本に秒数は書かない。タイミングは `{n}`（解説）と `@時刻`（ゲーム実況）だけで決める
+- 台本に秒数は書かない。タイミングは `{n}`（解説）・`@時刻`（ゲーム実況）・`beats=` と `{beat:n}`（モーション動画の拍）で決める
 - ツール自体の不具合（検査の見逃し、描画の崩れ）に気づいたら、台本でごまかさず利用者に伝える。直せるならコードを直す
   （コードを直したら `npm run typecheck` と `npm test`）
 
@@ -54,6 +56,7 @@ description: gmm（台本から動画を作る CLI）で動画を作る・直す
 | `gmm-marp` | Marp スライドを台本の下書きにする | `gmm marp` |
 | `gmm-explainer-script` | 解説動画の構成と台本（1人／掛け合い） | — |
 | `gmm-rta-script` | 録画を下見して、時刻付きの実況台本を書く | `gmm footage` |
+| `gmm-motion-script` | モーション動画の構成と台本（組み込みの部品／AI が書く場面のコード） | — |
 | `gmm-terms` | 専門用語を洗い出し、最初に使う所で説明させる | `gmm terms` |
 | `gmm-bgm` | BGM を選ぶ | `gmm bgm list` |
 | `gmm-review` | 検査とキーフレームの目視で直す | `gmm check`、`gmm frames` |

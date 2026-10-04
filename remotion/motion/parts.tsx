@@ -125,7 +125,8 @@ export const Kinetic: React.FC<PartProps<"kinetic">> = ({ el, frame, fps, fpb, w
 export const Counter: React.FC<PartProps<"counter">> = ({ el, frame, fpb, palette }) => {
   if (frame < el.from) return null;
   const f = frame - el.from;
-  const k = interpolate(f, [0, el.beats * fpb], [0, 1], { extrapolateRight: "clamp", easing: (t) => 1 - Math.pow(2, -10 * t) });
+  // 終わりでちょうど value になるよう、0〜1 にそろえた easeOutExpo
+  const k = interpolate(f, [0, el.beats * fpb], [0, 1], { extrapolateRight: "clamp", easing: (t) => (1 - Math.pow(2, -10 * t)) / (1 - Math.pow(2, -10)) });
   const current = el.start + (el.value - el.start) * k;
   const done = k >= 0.999;
   const glow = done ? beatInfo(f - el.beats * fpb, fpb).pulse : 0;
@@ -166,8 +167,11 @@ export const Chart: React.FC<PartProps<"chart">> = ({ el, frame, fpb, width, hei
     </div>
   );
   if (el.kind === "line") {
+    // 両端のラベル（幅 300）が画面からはみ出さないよう、点は内側に置く
+    const pl = left + 160;
+    const pr = right - 160;
     const pts = el.items.map((it, i) => ({
-      x: left + ((right - left) * i) / Math.max(1, el.items.length - 1),
+      x: el.items.length === 1 ? width / 2 : pl + ((pr - pl) * i) / (el.items.length - 1),
       y: bottom - ((bottom - top - 60) * it.value) / max,
       it,
     }));
