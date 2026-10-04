@@ -53,7 +53,7 @@ const items = (body: string[]) => body.map((l) => l.trim()).filter(Boolean).map(
 
 export function buildMotionElement(kind: string, argsSrc: string, body: string[]): MotionElement {
   const { timing, params: p } = parseArgs(argsSrc);
-  const base = { ...timing };
+  const base = { ...timing, area: p.area };
   const el = (() => {
     switch (kind) {
       case "kinetic":
@@ -117,9 +117,49 @@ export function buildMotionElement(kind: string, argsSrc: string, body: string[]
         return { type: kind, src: p.src, frame: p.frame, zoom: num(p.zoom, "zoom"), caption: items(body).join(" ") || undefined, ...base };
       case "three":
         return { type: kind, preset: p.preset, ...base };
+      case "terminal":
+        return { type: kind, title: p.title, every: num(p.every, "every"), lines: body.filter((l) => l.trim()).map((l) => takeTiming(l.replace(/^\s{0,}/, ""))), ...base };
+      case "editor": {
+        // 本文はそのまま（字下げも残す）。単独の ::: は部品の終わりになるので、\::: と書く
+        const code = body.map((l) => l.replace(/^(\s*)\\:::/, "$1:::")).join("\n").replace(/^\n+|\s+$/g, "");
+        return {
+          type: kind,
+          file: p.file ?? (p.src ? p.src.split("/").pop() : undefined),
+          lang: p.lang,
+          code,
+          src: p.src,
+          lines: p.lines,
+          typing: p.typing === undefined ? undefined : p.typing !== "false",
+          beats: num(p.beats, "beats"),
+          ...base,
+        };
+      }
+      case "clip":
+        if (!p.src) throw new Error(":::clip には src=動画のパス が必要です");
+        return {
+          type: kind,
+          src: p.src,
+          start: num(p.start, "start"),
+          end: num(p.end, "end"),
+          frame: p.frame,
+          caption: items(body).join(" ") || undefined,
+          ...base,
+        };
+      case "features":
+        return {
+          type: kind,
+          every: num(p.every, "every"),
+          columns: num(p.columns, "columns"),
+          items: items(body).map((l) => {
+            const t = takeTiming(l);
+            const m = t.text.match(/^(.+?)\s*[:：]\s*(.*)$/);
+            return { title: m ? m[1] : t.text, text: m ? m[2] : "", at: t.at, beat: t.beat };
+          }),
+          ...base,
+        };
       case "custom": {
         if (!p.src) throw new Error(":::custom には src=場面のコード（.tsx）が必要です");
-        const { src, ...props } = p;
+        const { src, area: _area, ...props } = p;
         // 本文の「key: value」も props に入れる（長い文字列を渡すとき）
         for (const l of items(body)) {
           const m = l.match(/^(\w+)\s*:\s*(.*)$/);
@@ -129,7 +169,7 @@ export function buildMotionElement(kind: string, argsSrc: string, body: string[]
       }
       default:
         throw new Error(
-          `未知の部品 :::${kind}（モーション動画で使えるのは kinetic / counter / chart / history / hero / backdrop / shot / three / custom）`,
+          `未知の部品 :::${kind}（モーション動画で使えるのは kinetic / counter / chart / history / hero / backdrop / shot / three / terminal / editor / clip / features / custom）`,
         );
     }
   })();
@@ -144,7 +184,8 @@ export function buildMotionElement(kind: string, argsSrc: string, body: string[]
 function referencedSentences(el: MotionElement): number[] {
   const own = el.at ? [el.at] : [];
   if (el.type === "kinetic") return [...own, ...el.lines.flatMap((l) => (l.at ? [l.at] : []))];
-  if (el.type === "history") return [...own, ...el.items.flatMap((l) => (l.at ? [l.at] : []))];
+  if (el.type === "history" || el.type === "features") return [...own, ...el.items.flatMap((l) => (l.at ? [l.at] : []))];
+  if (el.type === "terminal") return [...own, ...el.lines.flatMap((l) => (l.at ? [l.at] : []))];
   return own;
 }
 

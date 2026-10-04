@@ -53,7 +53,7 @@ async function renderInputsHash(outDir: string): Promise<string> {
   };
   await walk(join(root, "remotion"));
   h.update(await readFile(join(root, "package-lock.json")));
-  for (const d of ["characters", "images", "fonts"]) await walk(join(outDir, "public", d));
+  for (const d of ["characters", "images", "fonts", "clips"]) await walk(join(outDir, "public", d));
   // 場面のコード（:::custom）
   for (const f of ["custom-scenes.tsx", "custom-scenes.hash"]) if (existsSync(join(outDir, f))) h.update(await readFile(join(outDir, f)));
   return h.digest("hex");

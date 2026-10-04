@@ -5,6 +5,38 @@ import type { ResolvedMotionElement } from "../../src/motion/schema";
 import type { ResolvedScene, Timeline } from "../../src/schema";
 import { beatInfo, paletteOf, random, type Palette } from "./kit";
 import { Backdrop, Chart, Counter, Hero, History, Kinetic, Shot } from "./parts";
+import { Clip, Editor, Features, Terminal } from "./ui";
+import type { Area } from "../../src/motion/schema";
+
+/** 置き場所（area）の枠。画面の端から 80px、枠どうしは 40px あける */
+export function areaBox(area: Area | undefined, W: number, H: number) {
+  const m = 80;
+  const g = 40;
+  const hw = (W - 2 * m - g) / 2;
+  const hh = (H - 2 * m - g) / 2;
+  switch (area) {
+    case "left":
+      return { x: m, y: m, width: hw, height: H - 2 * m };
+    case "right":
+      return { x: m + hw + g, y: m, width: hw, height: H - 2 * m };
+    case "top":
+      return { x: m, y: m, width: W - 2 * m, height: hh };
+    case "bottom":
+      return { x: m, y: m + hh + g, width: W - 2 * m, height: hh };
+    case "tl":
+      return { x: m, y: m, width: hw, height: hh };
+    case "tr":
+      return { x: m + hw + g, y: m, width: hw, height: hh };
+    case "bl":
+      return { x: m, y: m + hh + g, width: hw, height: hh };
+    case "br":
+      return { x: m + hw + g, y: m + hh + g, width: hw, height: hh };
+    case "center":
+      return { x: W * 0.12, y: H * 0.1, width: W * 0.76, height: H * 0.8 };
+    default:
+      return { x: 0, y: 0, width: W, height: H };
+  }
+}
 import { ThreeScene } from "./three";
 
 export const MotionScene: React.FC<{ scene: ResolvedScene; timeline: Timeline }> = ({ scene, timeline }) => {
@@ -13,11 +45,18 @@ export const MotionScene: React.FC<{ scene: ResolvedScene; timeline: Timeline }>
   const fpb = timeline.motion!.framesPerBeat;
   const palette = paletteOf(timeline.theme);
   return (
-    <AbsoluteFill data-gmm-scene={scene.id} style={{ background: palette.background, color: palette.text, overflow: "hidden" }}>
+    <AbsoluteFill data-gmm-scene={scene.id} style={{ background: palette.background, color: palette.text, fontFamily: palette.fontFamily, overflow: "hidden" }}>
       <Transition kind={scene.transition ?? "cut"} frame={frame} fpb={fpb} palette={palette}>
-        {(scene.motion ?? []).map((el, i) => (
-          <Layer key={i} el={el} frame={frame} fps={fps} fpb={fpb} width={width} height={height} palette={palette} sceneDuration={scene.durationInFrames} />
-        ))}
+        {(scene.motion ?? []).map((el, i) => {
+          // 窓・カードの部品は、area がなければ中央の枠に置く（画面の端まで広げない）
+          const boxed = el.type === "terminal" || el.type === "editor" || el.type === "clip" || el.type === "features";
+          const box = areaBox(el.area ?? (boxed ? "center" : "full"), width, height);
+          return (
+            <div key={i} style={{ position: "absolute", left: box.x, top: box.y, width: box.width, height: box.height }}>
+              <Layer el={el} frame={frame} fps={fps} fpb={fpb} width={box.width} height={box.height} palette={palette} sceneDuration={scene.durationInFrames} />
+            </div>
+          );
+        })}
       </Transition>
     </AbsoluteFill>
   );
@@ -48,6 +87,14 @@ const Layer: React.FC<{
       return <Backdrop el={el} {...p} />;
     case "shot":
       return <Shot el={el} {...p} />;
+    case "terminal":
+      return <Terminal el={el} {...p} />;
+    case "editor":
+      return <Editor el={el} {...p} />;
+    case "clip":
+      return <Clip el={el} {...p} />;
+    case "features":
+      return <Features el={el} {...p} />;
     case "three":
       return (
         <Sequence from={el.from} layout="none">

@@ -3,7 +3,7 @@
 // （音声はキャッシュされるので、変えた文だけ作り直される）。
 import { createHash } from "node:crypto";
 import { existsSync } from "node:fs";
-import { copyFile, mkdir, readFile, writeFile } from "node:fs/promises";
+import { copyFile, mkdir, readFile, stat, writeFile } from "node:fs/promises";
 import { basename, dirname, extname, join } from "node:path";
 import { NARRATION_LUFS, prepareAudioAssets, writeTransitionSounds } from "./audio.js";
 import { writeCustomRegistry } from "./motion/custom.js";
@@ -106,6 +106,7 @@ async function prepareMotion(
   opts: PipelineOptions,
 ): Promise<{ doc: SceneDoc; timeline: Timeline; outDir: string }> {
   await writeCustomRegistry(doc, input, outDir);
+  await prepareMotionAssets(doc, input, outDir);
   await writeTransitionSounds(outDir);
   const theme = await loadTheme(doc.meta.theme, input, outDir);
   const timeline = buildMotionTimeline(doc, audio, theme);
@@ -121,6 +122,30 @@ async function prepareMotion(
   await writeFile(join(outDir, "credits.txt"), credits.join("\n") + (credits.length ? "\n" : ""));
   opts.log(`タイムライン: ${timeline.scenes.length}場面 / ${(timeline.durationInFrames / doc.meta.fps).toFixed(1)}秒（${doc.meta.bpm} BPM）`);
   return { doc, timeline, outDir };
+}
+
+/** モーション動画：エディタに見せるファイルを読み込み、動画の一部（:::clip）を public/clips/ に置く */
+async function prepareMotionAssets(doc: SceneDoc, input: string, outDir: string): Promise<void> {
+  for (const scene of doc.scenes) {
+    for (const el of scene.motion ?? []) {
+      if (el.type === "editor" && el.src) {
+        const file = join(dirname(input), el.src);
+        if (!existsSync(file)) throw new Error(`エディタに見せるファイルがありません: ${file}（場面「${scene.heading}」）`);
+        let lines = (await readFile(file, "utf8")).replace(/\r\n/g, "\n").split("\n");
+        const range = el.lines?.match(/^(\d+)-(\d+)$/);
+        if (range) lines = lines.slice(Number(range[1]) - 1, Number(range[2]));
+        el.code = lines.join("\n").replace(/\s+$/, "");
+      }
+      if (el.type === "clip" && !el.src.startsWith("clips/")) {
+        const from = join(dirname(input), el.src);
+        if (!existsSync(from)) throw new Error(`動画がありません: ${from}（場面「${scene.heading}」。先にその動画を書き出してください）`);
+        const name = `clips/${createHash("sha1").update(from).update(String((await stat(from)).mtimeMs)).digest("hex").slice(0, 16)}${extname(from).toLowerCase()}`;
+        await mkdir(join(outDir, "public/clips"), { recursive: true });
+        if (!existsSync(join(outDir, "public", name))) await copyFile(from, join(outDir, "public", name));
+        el.src = name;
+      }
+    }
+  }
 }
 
 /** ゲーム実況（layout: biim）：録画を調べて置き、話者ごとの立ち絵を読み、タイムラインを作る */

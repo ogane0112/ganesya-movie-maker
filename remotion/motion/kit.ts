@@ -41,6 +41,8 @@ export type Palette = {
   accentSoft: string;
   fontFamily: string;
   displayFontFamily: string;
+  /** 数字（カウンター・グラフの値・年） */
+  numberFontFamily: string;
   monoFontFamily: string;
 };
 
@@ -54,7 +56,8 @@ export function paletteOf(theme: Theme): Palette {
     accent2: theme.accent2 ?? theme.accent,
     accentSoft: theme.accentSoft,
     fontFamily: theme.fontFamily,
-    displayFontFamily: theme.fontFamily,
+    displayFontFamily: theme.displayFontFamily ?? theme.fontFamily,
+    numberFontFamily: theme.numberFontFamily ?? theme.displayFontFamily ?? theme.codeFontFamily,
     monoFontFamily: theme.codeFontFamily,
   };
 }

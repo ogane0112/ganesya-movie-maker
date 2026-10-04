@@ -151,6 +151,70 @@ gmm
 
 `preset=` は `cubes`（波打つ立方体）/ `globe`（点の地球儀）/ `particles`（渦を巻く粒）/ `rings`（回る輪）。
 
+### `:::terminal` ターミナル
+
+![terminal](motion/img/s13.png)
+
+```markdown
+:::terminal title="~/videos" area=right every=1 {beat:2}
+$ gmm build launch.md                 ← $ の行は1文字ずつ打ち込まれる
+検査OK: 問題は見つかりませんでした      ← それ以外は出力（[ERROR] は赤、[WARN] は黄、検査OK・動画: は色付き）
+:::
+```
+
+### `:::editor` エディタ
+
+![editor](motion/img/s14.png)
+
+```markdown
+:::editor src=../duo/http-status.md lines=37-48 area=right beats=12
+:::
+```
+
+`src=`（台本からの相対パス）と `lines=` で手元のファイルを見せる。本文に直接書いてもよい（単独の `:::` は `\:::` と書く）。
+`typing=false` で最初から全部出す。`beats=` は打ち終わるまでの拍数。長い行は折り返す。
+
+### `:::clip` 書き出した動画を流す
+
+```markdown
+:::clip src=../../build/http-status/video.mp4 start=18.5 area=tl
+解説・掛け合い
+:::
+```
+
+ほかの動画（gmm で書き出したものなど）の一部を、ブラウザ（`frame=browser`・既定）やスマホ（`frame=phone`）の枠で流す。
+`start=` / `end=` は元の動画の秒。音は出さない。先にその動画を書き出しておく。
+
+### `:::features` できることの一覧
+
+![features](motion/img/s15.png)
+
+```markdown
+:::features every=1 columns=3
+- 解説動画: ずんだもんが説明
+- ゲーム実況: 録画に実況
+:::
+```
+
+### 置き場所 `area=`
+
+どの部品にも `area=` を付けられる。`full`（既定）/ `left` / `right` / `top` / `bottom` / `tl` `tr` `bl` `br`（四隅）/ `center`。
+ターミナル・エディタ・動画・一覧は、書かなければ `center`。説明の文字を `left`、エディタを `right` に置くと「書いている様子」になる。
+
+## 製品紹介の組み立て方
+
+何ができて、どう使うのかを**使っている様子**で見せる（`examples/motion/launch.md`）：
+
+1. つかみ（`hero`）→ 問い（`kinetic`）
+2. 手順ごとに「左に説明の文字（`kinetic mode=stack area=left`）、右に実物（`editor` / `terminal`）」
+3. できたもの（`clip` を四隅に並べる）
+4. できること（`features`）→ 締め（`hero`）
+
+## フォント
+
+テーマ `night` は Google Fonts の **M PLUS 1**（本文・日本語）と **Outfit**（大きな文字・数字の英数字）を使う。
+テーマ JSON の `fontFamily` / `displayFontFamily` / `numberFontFamily` で変えられる（`fonts:` でフォントファイルも足せる）。
+
 ## 場面のコード `:::custom`
 
 ![custom](motion/img/s12.png)

@@ -14,6 +14,9 @@ export const Theme = z.object({
   accent2: z.string().optional(),
   marker: z.string(),
   fontFamily: z.string(),
+  /** 大きな文字（題名・キネティック）と数字のフォント。省略時は fontFamily */
+  displayFontFamily: z.string().optional(),
+  numberFontFamily: z.string().optional(),
   codeFontFamily: z.string(),
   /** Shiki のテーマ名 */
   codeTheme: z.string(),
@@ -37,6 +40,9 @@ export type Theme = z.infer<typeof Theme>;
 
 const FONT = '"Noto Sans JP", "IPAGothic", sans-serif';
 const CODE_FONT = '"JetBrains Mono", "Noto Sans JP", monospace';
+// モーション動画：幾何学的で太い字に強い M PLUS 1 と、英数字を Outfit で（Google Fonts）
+const MOTION_FONT = '"M PLUS 1", "Noto Sans JP", sans-serif';
+const MOTION_DISPLAY = '"Outfit", "M PLUS 1", "Noto Sans JP", sans-serif';
 
 export const THEMES: Record<string, Theme> = {
   // Marp スライドと揃えた緑基調
@@ -68,7 +74,9 @@ export const THEMES: Record<string, Theme> = {
     accentSoft: "#123a3a",
     accent2: "#ff4f9a",
     marker: "rgba(62, 230, 193, 0.35)",
-    fontFamily: FONT,
+    fontFamily: MOTION_FONT,
+    displayFontFamily: MOTION_DISPLAY,
+    numberFontFamily: MOTION_DISPLAY,
     codeFontFamily: CODE_FONT,
     codeTheme: "github-dark",
     fontSize: 48,

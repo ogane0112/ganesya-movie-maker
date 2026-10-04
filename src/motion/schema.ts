@@ -6,7 +6,13 @@ import { z } from "zod";
 
 const At = z.number().int().min(1);
 const Beat = z.number().min(1);
-const When = { at: At.optional(), beat: Beat.optional() };
+/**
+ * 部品を置く場所。full（画面全体・既定）/ left・right（左右の半分）/ top・bottom（上下の半分）/
+ * tl・tr・bl・br（四隅の4分の1）/ center（中央の大きめの枠）
+ */
+export const Area = z.enum(["full", "left", "right", "top", "bottom", "tl", "tr", "bl", "br", "center"]);
+export type Area = z.infer<typeof Area>;
+const When = { at: At.optional(), beat: Beat.optional(), area: Area.optional() };
 
 /** 大きな文字が拍に合わせて出る（キネティック・タイポグラフィ） */
 export const KineticElement = z.object({
@@ -100,7 +106,55 @@ export const CustomElement = z.object({
   ...When,
 });
 
+/** ターミナル。$ で始まる行は打ち込まれ、それ以外の行（出力）はそのまま出る */
+export const TerminalElement = z.object({
+  type: z.literal("terminal"),
+  title: z.string().default("Terminal"),
+  lines: z.array(z.object({ text: z.string(), ...When })).min(1),
+  every: z.number().positive().default(1),
+  ...When,
+});
+
+/** エディタ。台本やコードが打ち込まれていく（typing=false なら最初から全部） */
+export const EditorElement = z.object({
+  type: z.literal("editor"),
+  file: z.string().default("script.md"),
+  lang: z.enum(["markdown", "ts", "text"]).default("markdown"),
+  code: z.string().default(""),
+  /** 手元のファイルを見せる（台本からの相対パス。パイプラインで code に読み込む）。lines="1-12" で行を絞る */
+  src: z.string().optional(),
+  lines: z.string().optional(),
+  typing: z.boolean().default(true),
+  /** 打ち終わるまでの拍数 */
+  beats: z.number().positive().default(4),
+  ...When,
+});
+
+/** 動画の一部を端末の枠に入れて流す（書き出した動画を見せる）。start / end は元の動画の秒 */
+export const ClipElement = z.object({
+  type: z.literal("clip"),
+  src: z.string(),
+  start: z.number().min(0).default(0),
+  end: z.number().optional(),
+  frame: z.enum(["browser", "phone", "none"]).default("browser"),
+  caption: z.string().optional(),
+  ...When,
+});
+
+/** できることの一覧（カードが順に出る） */
+export const FeaturesElement = z.object({
+  type: z.literal("features"),
+  items: z.array(z.object({ title: z.string(), text: z.string().default(""), ...When })).min(1),
+  every: z.number().positive().default(1),
+  columns: z.number().int().min(1).max(4).optional(),
+  ...When,
+});
+
 export const MotionElement = z.discriminatedUnion("type", [
+  TerminalElement,
+  EditorElement,
+  ClipElement,
+  FeaturesElement,
   KineticElement,
   CounterElement,
   ChartElement,
@@ -120,6 +174,7 @@ export type Transition = z.infer<typeof Transition>;
 // ---- 解決後（フレームが決まったもの） ----
 
 type Timed<T> = Omit<T, "at" | "beat"> & { from: number };
+// 行・項目の area は使わない（部品ごと）
 
 export type ResolvedMotionElement =
   | (Timed<Omit<z.infer<typeof KineticElement>, "lines">> & { lines: { text: string; from: number }[] })
@@ -130,6 +185,10 @@ export type ResolvedMotionElement =
   | Timed<z.infer<typeof BackdropElement>>
   | Timed<z.infer<typeof ShotElement>>
   | Timed<z.infer<typeof ThreeElement>>
+  | (Timed<Omit<z.infer<typeof TerminalElement>, "lines">> & { lines: { text: string; from: number }[] })
+  | Timed<z.infer<typeof EditorElement>>
+  | Timed<z.infer<typeof ClipElement>>
+  | (Timed<Omit<z.infer<typeof FeaturesElement>, "items">> & { items: { title: string; text: string; from: number }[] })
   /** id: 場面コードの登録名（remotion/.generated/custom.ts） */
   | (Timed<z.infer<typeof CustomElement>> & { id: string });
 

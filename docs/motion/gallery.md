@@ -69,3 +69,29 @@ subtitles: none
 ## custom beats=4
 :::backdrop style=stars :::
 :::custom src=../../examples/motion/scenes/orbit-words.tsx center=custom :::
+
+## terminal beats=8
+:::backdrop style=gradient :::
+:::terminal title="~/videos"
+$ gmm build launch.md
+検査OK: 問題は見つかりませんでした
+動画: build/launch/video.mp4
+:::
+
+## editor beats=6
+:::backdrop style=gradient :::
+:::editor file=launch.md typing=false
+## つかみ beats=8
+:::hero style=reveal
+gmm
+台本を書くだけで、動画になる。
+\:::
+:::
+
+## features beats=8
+:::backdrop style=gradient :::
+:::features every=1
+- 書く: 台本だけ
+- 動かす: コマンド1つ
+- 直す: AI が検査
+:::

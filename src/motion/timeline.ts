@@ -105,32 +105,28 @@ function resolve(
   const { at: _a, beat: _b, ...rest } = el;
   switch (el.type) {
     case "kinetic": {
-      // 時刻のない行は、直前の時刻のある行（なければ部品の頭）から every 拍ごと。丸めの誤差がたまらないよう、起点から数える
-      let anchor = from;
-      let count = 0;
-      const lines = el.lines.map((l, i) => {
-        const explicit = l.at !== undefined || l.beat !== undefined;
-        const f = explicit ? when(l, from) : i === 0 ? from : anchor + Math.round((count + 1) * el.every * fpb);
-        if (explicit || i === 0) (anchor = f), (count = 0);
-        else count++;
-        mark(f);
-        return { text: l.text, from: f };
+      const lines = sequence(el.lines, from, el.every, fpb, when, mark).map((l) => ({ text: l.text, from: l.from }));
+      return { ...(rest as Omit<typeof el, "at" | "beat">), from, lines };
+    }
+    case "terminal": {
+      // コマンド（$ の行）は打ち込むのに時間がかかるので、打ち終わりも測る
+      const lines = sequence(el.lines, from, el.every, fpb, when, mark).map((l) => {
+        if (l.text.startsWith("$")) mark(l.from + typingFrames(l.text));
+        return { text: l.text, from: l.from };
       });
       return { ...(rest as Omit<typeof el, "at" | "beat">), from, lines };
     }
     case "history": {
-      let anchor = from;
-      let count = 0;
-      const items = el.items.map((it, i) => {
-        const explicit = it.at !== undefined || it.beat !== undefined;
-        const f = explicit ? when(it, from) : i === 0 ? from : anchor + Math.round((count + 1) * el.every * fpb);
-        if (explicit || i === 0) (anchor = f), (count = 0);
-        else count++;
-        mark(f);
-        return { label: it.label, text: it.text, from: f };
-      });
+      const items = sequence(el.items, from, el.every, fpb, when, mark).map((it) => ({ label: it.label, text: it.text, from: it.from }));
       return { ...(rest as Omit<typeof el, "at" | "beat">), from, items };
     }
+    case "features": {
+      const items = sequence(el.items, from, el.every, fpb, when, mark).map((it) => ({ title: it.title, text: it.text, from: it.from }));
+      return { ...(rest as Omit<typeof el, "at" | "beat">), from, items };
+    }
+    case "editor":
+      mark(Math.round(from + (el.typing ? el.beats : 0) * fpb));
+      return { ...rest, from } as ResolvedMotionElement;
     case "counter":
     case "chart":
       // 伸びきった所も測る
@@ -141,4 +137,31 @@ function resolve(
     default:
       return { ...rest, from } as ResolvedMotionElement;
   }
+}
+
+/** コマンドを打ち込むのにかかるフレーム数（1文字 1.2 フレーム。remotion/motion/ui.tsx と同じ） */
+export const typingFrames = (text: string) => Math.ceil([...text.replace(/^\$\s*/, "")].length * 1.2);
+
+/**
+ * 行・項目の時刻。時刻のない行は、直前の時刻のある行（なければ部品の頭）から every 拍ごと。
+ * 丸めの誤差がたまらないよう、起点から数える
+ */
+function sequence<T extends { at?: number; beat?: number }>(
+  list: T[],
+  from: number,
+  every: number,
+  fpb: number,
+  when: (t: { at?: number; beat?: number }, fallback: number) => number,
+  mark: (frame: number) => void,
+): (T & { from: number })[] {
+  let anchor = from;
+  let count = 0;
+  return list.map((it, i) => {
+    const explicit = it.at !== undefined || it.beat !== undefined;
+    const f = explicit ? when(it, from) : i === 0 ? from : anchor + Math.round((count + 1) * every * fpb);
+    if (explicit || i === 0) (anchor = f), (count = 0);
+    else count++;
+    mark(f);
+    return { ...it, from: f };
+  });
 }

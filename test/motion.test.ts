@@ -89,3 +89,39 @@ describe("モーション動画", () => {
     expect(a.reduce((m, v) => Math.max(m, Math.abs(v)), 0)).toBeLessThanOrEqual(0.9001);
   });
 });
+
+describe("使っている様子を見せる部品", () => {
+  const d = parseMotionScript(`---
+layout: motion
+---
+## A beats=8
+:::terminal area=right title=T every=2
+$ gmm build x.md
+検査OK
+:::
+:::editor file=a.md typing=false beats=2
+## 見出し
+\\:::
+:::
+:::clip src=v.mp4 start=3 area=tl
+説明
+:::
+:::features
+- 書く: 台本だけ
+- 動かす
+:::
+`);
+  it("terminal / editor / clip / features と area", () => {
+    const [t, e, c, f] = d.scenes[0].motion!;
+    expect(t).toMatchObject({ type: "terminal", area: "right", title: "T", every: 2, lines: [{ text: "$ gmm build x.md" }, { text: "検査OK" }] });
+    // 単独の ::: は \\::: と書く
+    expect(e).toMatchObject({ type: "editor", file: "a.md", typing: false, code: "## 見出し\n:::" });
+    expect(c).toMatchObject({ type: "clip", src: "v.mp4", start: 3, area: "tl", caption: "説明" });
+    expect(f).toMatchObject({ type: "features", items: [{ title: "書く", text: "台本だけ" }, { title: "動かす", text: "" }] });
+  });
+  it("ターミナルの行は every 拍ごと", () => {
+    const t = buildMotionTimeline(d, { provider: "silent", voice: "z", sentences: [] }, THEMES.night);
+    const el = t.scenes[0].motion![0];
+    expect(el.type === "terminal" && el.lines.map((l) => l.from)).toEqual([0, 30]);
+  });
+});

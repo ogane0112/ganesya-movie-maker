@@ -88,7 +88,7 @@ export const Kinetic: React.FC<PartProps<"kinetic">> = ({ el, frame, fps, fpb, w
           <div
             key={i}
             data-gmm-text
-            style={{ fontSize: size, fontWeight: DISPLAY_WEIGHT, color: palette.text, lineHeight: 1.1, whiteSpace: "nowrap", textShadow: SHADOW, ...style(l.from, l.text) }}
+            style={{ fontSize: size, fontWeight: DISPLAY_WEIGHT, fontFamily: palette.displayFontFamily, color: palette.text, lineHeight: 1.1, whiteSpace: "nowrap", textShadow: SHADOW, ...style(l.from, l.text) }}
           >
             <Emph text={typed(l.text, l.from)} palette={palette} />
           </div>
@@ -105,6 +105,7 @@ export const Kinetic: React.FC<PartProps<"kinetic">> = ({ el, frame, fps, fpb, w
         style={{
           fontSize: size,
           fontWeight: DISPLAY_WEIGHT,
+          fontFamily: palette.displayFontFamily,
           color: palette.text,
           lineHeight: 1.1,
           whiteSpace: "nowrap",
@@ -133,7 +134,7 @@ export const Counter: React.FC<PartProps<"counter">> = ({ el, frame, fpb, palett
   const appear = ease(f, fpb * 0.5);
   return (
     <div data-gmm-el="backdrop" style={{ ...layer, display: "flex", flexDirection: "column", justifyContent: "center", alignItems: "center", gap: 24, opacity: appear }}>
-      <div style={{ display: "flex", alignItems: "baseline", gap: 12, color: palette.text, fontFamily: palette.monoFontFamily, fontWeight: 700 }}>
+      <div style={{ display: "flex", alignItems: "baseline", gap: 12, color: palette.text, fontFamily: palette.numberFontFamily, fontWeight: 700 }}>
         {el.prefix && <span data-gmm-text style={{ fontSize: 110, color: palette.subtext }}>{el.prefix}</span>}
         <span data-gmm-text style={{ fontSize: 220, letterSpacing: "-0.04em", fontVariantNumeric: "tabular-nums", textShadow: `0 0 ${40 * glow}px ${palette.accent}` }}>
           {formatNumber(current, el.decimals)}
@@ -162,7 +163,7 @@ export const Chart: React.FC<PartProps<"chart">> = ({ el, frame, fpb, width, hei
   const top = el.title ? 220 : 160;
   const bottom = height - 180;
   const title = el.title && (
-    <div data-gmm-text style={{ position: "absolute", left, top: 90, fontSize: 64, fontWeight: 900, color: palette.text, opacity: ease(f, fpb * 0.5) }}>
+    <div data-gmm-text style={{ position: "absolute", left, top: 90, fontSize: 64, fontWeight: 900, fontFamily: palette.displayFontFamily, color: palette.text, opacity: ease(f, fpb * 0.5) }}>
       {el.title}
     </div>
   );
@@ -238,7 +239,7 @@ export const Chart: React.FC<PartProps<"chart">> = ({ el, frame, fpb, width, hei
               {it.label}
             </div>
             <div style={{ width: barMax * (it.value / max) * k, height: rowH * 0.55, background: color, borderRadius: 8, boxShadow: it.highlight ? `0 0 30px ${color}` : undefined }} />
-            <div data-gmm-text style={{ fontSize: 48, fontWeight: 700, color, fontFamily: palette.monoFontFamily, opacity: k > 0.05 ? 1 : 0 }}>
+            <div data-gmm-text style={{ fontSize: 48, fontWeight: 700, color, fontFamily: palette.numberFontFamily, opacity: k > 0.05 ? 1 : 0 }}>
               {formatNumber(it.value * k, decimals)}
               {el.unit}
             </div>
@@ -276,7 +277,7 @@ export const History: React.FC<PartProps<"history">> = ({ el, frame, fpb, width,
           <div key={i} style={{ position: "absolute", left: cx - 200, width: 400, top: 0, height, opacity: a * (cur ? 1 : 0.45) }}>
             <div
               data-gmm-text
-              style={{ position: "absolute", bottom: height - lineY + 40, width: 400, textAlign: "center", fontSize: cur ? 96 : 64, fontWeight: 900, color: cur ? palette.accent : palette.text, fontFamily: palette.monoFontFamily }}
+              style={{ position: "absolute", bottom: height - lineY + 40, width: 400, textAlign: "center", fontSize: cur ? 96 : 64, fontWeight: 900, color: cur ? palette.accent : palette.text, fontFamily: palette.numberFontFamily }}
             >
               {it.label}
             </div>
@@ -340,7 +341,7 @@ export const Hero: React.FC<PartProps<"hero">> = ({ el, frame, fpb, width, palet
   return (
     <div data-gmm-el="backdrop" style={{ ...layer, display: "flex", flexDirection: "column", justifyContent: "center", alignItems: "center" }}>
       <div style={{ position: "relative" }}>
-        <div data-gmm-text style={{ fontSize: size, fontWeight: 900, color: palette.text, lineHeight: 1.15, whiteSpace: "nowrap", letterSpacing: "-0.02em", textShadow: SHADOW, ...titleStyle }}>
+        <div data-gmm-text style={{ fontSize: size, fontWeight: 900, fontFamily: palette.displayFontFamily, color: palette.text, lineHeight: 1.15, whiteSpace: "nowrap", letterSpacing: "-0.02em", textShadow: SHADOW, ...titleStyle }}>
           <Emph text={el.title} palette={palette} />
         </div>
         {bar}
