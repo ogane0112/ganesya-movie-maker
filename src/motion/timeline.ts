@@ -105,20 +105,27 @@ function resolve(
   const { at: _a, beat: _b, ...rest } = el;
   switch (el.type) {
     case "kinetic": {
-      let prev = from;
+      // 時刻のない行は、直前の時刻のある行（なければ部品の頭）から every 拍ごと。丸めの誤差がたまらないよう、起点から数える
+      let anchor = from;
+      let count = 0;
       const lines = el.lines.map((l, i) => {
-        const f = when(l, i === 0 ? from : Math.round(prev + el.every * fpb));
-        prev = f;
+        const explicit = l.at !== undefined || l.beat !== undefined;
+        const f = explicit ? when(l, from) : i === 0 ? from : anchor + Math.round((count + 1) * el.every * fpb);
+        if (explicit || i === 0) (anchor = f), (count = 0);
+        else count++;
         mark(f);
         return { text: l.text, from: f };
       });
       return { ...(rest as Omit<typeof el, "at" | "beat">), from, lines };
     }
     case "history": {
-      let prev = from;
+      let anchor = from;
+      let count = 0;
       const items = el.items.map((it, i) => {
-        const f = when(it, i === 0 ? from : Math.round(prev + el.every * fpb));
-        prev = f;
+        const explicit = it.at !== undefined || it.beat !== undefined;
+        const f = explicit ? when(it, from) : i === 0 ? from : anchor + Math.round((count + 1) * el.every * fpb);
+        if (explicit || i === 0) (anchor = f), (count = 0);
+        else count++;
         mark(f);
         return { label: it.label, text: it.text, from: f };
       });

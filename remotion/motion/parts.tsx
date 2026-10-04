@@ -16,6 +16,8 @@ export type PartProps<T extends ResolvedMotionElement["type"]> = {
 
 const layer: React.CSSProperties = { position: "absolute", inset: 0 };
 const DISPLAY_WEIGHT = 900;
+/** 背景（3D・粒）の上でも読めるように、大きな文字に付ける影 */
+const SHADOW = "0 6px 40px rgba(0, 0, 0, 0.55)";
 
 /** **語** をアクセントの色で */
 const Emph: React.FC<{ text: string; palette: Palette }> = ({ text, palette }) => (
@@ -86,7 +88,7 @@ export const Kinetic: React.FC<PartProps<"kinetic">> = ({ el, frame, fps, fpb, w
           <div
             key={i}
             data-gmm-text
-            style={{ fontSize: size, fontWeight: DISPLAY_WEIGHT, color: palette.text, lineHeight: 1.1, whiteSpace: "nowrap", ...style(l.from, l.text) }}
+            style={{ fontSize: size, fontWeight: DISPLAY_WEIGHT, color: palette.text, lineHeight: 1.1, whiteSpace: "nowrap", textShadow: SHADOW, ...style(l.from, l.text) }}
           >
             <Emph text={typed(l.text, l.from)} palette={palette} />
           </div>
@@ -107,6 +109,7 @@ export const Kinetic: React.FC<PartProps<"kinetic">> = ({ el, frame, fps, fpb, w
           lineHeight: 1.1,
           whiteSpace: "nowrap",
           letterSpacing: "-0.02em",
+          textShadow: SHADOW,
           ...style(cur.from, cur.text),
           transform: `${style(cur.from, cur.text).transform ?? ""} scale(${pulse})`,
         }}
@@ -259,8 +262,11 @@ export const History: React.FC<PartProps<"history">> = ({ el, frame, fpb, width,
       <div style={{ position: "absolute", left: 0, right: 0, top: lineY - 2, height: 4, background: palette.subtext, opacity: 0.35 }} />
       {el.items.map((it, i) => {
         if (it.from > frame) return null;
-        const a = ease(frame - it.from, fpb * 0.6);
         const cx = x + i * gap;
+        // 画面の端に近づいたら薄くし、端（安全領域）から出るものは描かない
+        const edge = Math.min(cx - 200 - 48, width - 48 - (cx + 200));
+        if (edge < 0) return null;
+        const a = ease(frame - it.from, fpb * 0.6) * Math.min(1, edge / 120);
         const cur = i === curIndex;
         return (
           <div key={i} style={{ position: "absolute", left: cx - 200, width: 400, top: 0, height, opacity: a * (cur ? 1 : 0.45) }}>
@@ -282,7 +288,7 @@ export const History: React.FC<PartProps<"history">> = ({ el, frame, fpb, width,
                 boxShadow: cur ? `0 0 ${24 + 16 * beatInfo(frame - it.from, fpb).pulse}px ${palette.accent}` : undefined,
               }}
             />
-            <div data-gmm-text style={{ position: "absolute", top: lineY + 48, width: 400, textAlign: "center", fontSize: 40, lineHeight: 1.4, color: palette.text, fontWeight: 700 }}>
+            <div data-gmm-text style={{ position: "absolute", top: lineY + 48, width: 400, textAlign: "center", fontSize: 46, lineHeight: 1.4, color: palette.text, fontWeight: 700 }}>
               {it.text}
             </div>
           </div>
@@ -330,7 +336,7 @@ export const Hero: React.FC<PartProps<"hero">> = ({ el, frame, fpb, width, palet
   return (
     <div data-gmm-el="backdrop" style={{ ...layer, display: "flex", flexDirection: "column", justifyContent: "center", alignItems: "center" }}>
       <div style={{ position: "relative" }}>
-        <div data-gmm-text style={{ fontSize: size, fontWeight: 900, color: palette.text, lineHeight: 1.15, whiteSpace: "nowrap", letterSpacing: "-0.02em", ...titleStyle }}>
+        <div data-gmm-text style={{ fontSize: size, fontWeight: 900, color: palette.text, lineHeight: 1.15, whiteSpace: "nowrap", letterSpacing: "-0.02em", textShadow: SHADOW, ...titleStyle }}>
           <Emph text={el.title} palette={palette} />
         </div>
         {bar}
