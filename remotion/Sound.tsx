@@ -46,7 +46,15 @@ export const Sound: React.FC<{ timeline: Timeline }> = ({ timeline }) => {
   return (
     <>
       {/* プレビューの音量は 1 までなので切り詰める（書き出しの合成 src/mix.ts は正確な値を使う） */}
-      {bgm && <Audio src={staticFile(bgm.src)} loop volume={(f) => Math.min(1, bgmVolumeAt(f, timeline, spans))} />}
+      {bgm && (
+        <Audio
+          src={staticFile(bgm.src)}
+          loop
+          // 曲の小節の頭から鳴らす（モーション動画）。ループもそこから
+          trimBefore={bgm.start ? Math.round(bgm.start * timeline.meta.fps) : undefined}
+          volume={(f) => Math.min(1, bgmVolumeAt(f, timeline, spans))}
+        />
+      )}
       {timeline.scenes.slice(1).map((scene) => {
         // 場面ごとの効果音（モーション動画の転換）があればそれを、なければ全体の効果音
         const src = scene.se ?? se?.src;

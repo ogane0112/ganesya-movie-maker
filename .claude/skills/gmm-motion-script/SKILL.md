@@ -1,6 +1,6 @@
 ---
 name: gmm-motion-script
-description: gmm のモーション動画（layout: motion。製品・技術の紹介、音に合わせた MV 風、データ・歴史の物語、3D・エフェクト重視）の構成と台本を書く・直す機能スキル。拍（bpm）で場面を組み、組み込みの部品（大きな文字・数字・グラフ・年表・題名・背景・画面写真・3D）と、AI が書く場面のコード（:::custom の TSX）のどちらで作るかを決め、合成した曲（synth）を選ぶ。gmm スキルの工程として使う。「紹介動画を作って」「MVっぽく」「モーショングラフィックスで」「3Dで」と単独で頼まれたときも使う。
+description: gmm のモーション動画（layout: motion。製品・技術の紹介、音に合わせた MV 風、データ・歴史の物語、3D・エフェクト重視）の構成と台本を書く・直す機能スキル。拍（bpm）で場面を組み、組み込みの部品（大きな文字・数字・グラフ・年表・題名・背景・画面写真・3D）と、AI が書く場面のコード（:::custom の TSX）のどちらで作るかを決め、曲（魔王魂などのカタログの曲。拍は曲から測る）を選ぶ。gmm スキルの工程として使う。「紹介動画を作って」「MVっぽく」「モーショングラフィックスで」「3Dで」と単独で頼まれたときも使う。
 ---
 
 # モーション動画の台本を書く
@@ -18,10 +18,10 @@ description: gmm のモーション動画（layout: motion。製品・技術の�
 
 | 型 | 拍と場面 | 曲 | よく使う部品 |
 | --- | --- | --- | --- |
-| 紹介（ローンチ） | 120 BPM、手順の場面は 16 拍 | `synth:drive` | kinetic（動機・困りごと）→ hero（解決）→ features（全体像）→ 手順ごとに step（左）＋ editor / terminal（右）→ clip（結果）→ features → hero |
-| MV 風 | 120〜128 BPM、8 拍ごとに場面、言葉は 1〜2 拍ごと | `synth:drive` / `synth:tech` | kinetic（replace / stack）・backdrop・three |
-| データ・歴史の物語 | 80〜100 BPM、場面はナレーションに合わせる（beats= を書かない） | `synth:chill` / `synth:epic` | history・counter・chart・kinetic（締めの問い） |
-| 3D・エフェクト | 120〜130 BPM、場面は 8 拍 | `synth:tech` / `synth:epic` | three・custom（3D）・hero |
+| 紹介（ローンチ） | 120 BPM 前後、手順の場面は 16 拍 | `maou:neorock54` / `maou:neorock33` | kinetic（動機・困りごと）→ hero（解決）→ features（全体像）→ 手順ごとに step（左）＋ editor / terminal（右）→ clip（結果）→ features → hero |
+| MV 風 | 120〜128 BPM、8 拍ごとに場面、言葉は 1〜2 拍ごと | `maou:neorock25` / `maou:cyber01` | kinetic（replace / stack）・backdrop・three |
+| データ・歴史の物語 | 80〜100 BPM、場面はナレーションに合わせる（beats= を書かない） | `maou:piano37` / `maou:piano35` | history・counter・chart・kinetic（締めの問い） |
+| 3D・エフェクト | 120〜130 BPM、場面は 8 拍 | `maou:cyber01` / `maou:neorock36` | three・custom（3D）・hero |
 
 ### 先に「話の流れ」を書く（必ず）
 
@@ -56,7 +56,8 @@ description: gmm のモーション動画（layout: motion。製品・技術の�
 
 ### 3. 台本を書く
 
-- フロントマター：`layout: motion`・`bpm:`・`bgm: synth:<プリセット>`・`subtitles:`（ナレーションがなければ `none`）
+- フロントマター：`layout: motion`・`bpm:`（曲を `gmm bgm tempo` で測った値）・`bgm: maou:<曲ID>`・`subtitles:`（ナレーションがなければ `none`）。
+  曲の選び方は `gmm-bgm`。曲を取れない環境だけ `bgm: synth:<プリセット>`
 - 場面は `## 名前 beats=8 transition=…`。部品は背景 → 3D → 文字 の順に重ねる
 - 大きな文字は 1 行 16 文字まで、一目で読める量に。強調は `**語**`
 - 場面の入り方は変化を付けすぎない（`cut` を基本に、区切りで `flash` / `wipe` / `zoom`）

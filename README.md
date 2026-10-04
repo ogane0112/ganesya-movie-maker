@@ -38,6 +38,7 @@ npm install
 | `gmm parse <台本>` | `scenes.json` を書き出すだけ |
 | `gmm bgm list [--tag 落ち着き]` | BGM カタログ（`bgm/*.json`）を雰囲気・合う場面つきで一覧する |
 | `gmm bgm fetch maou:acoustic50` | カタログの曲を `bgm/cache/` に取ってくる（書き出し時にも自動で取る） |
+| `gmm bgm tempo maou:neorock54` | 曲のテンポ（BPM）と最初の小節の頭を測る（モーション動画はこの拍に場面をそろえる） |
 | `gmm footage <録画> [--every 5]` | ゲーム録画の下見。時刻付きのコマ一覧画像と、暗転（ロード）区間の `!cut` 候補を出す |
 | `gmm marp <スライド.md>` | Marp スライドを台本の下書きにする（下記「Marp スライドから作る」） |
 | `gmm terms <台本>` | 専門用語の候補（カタカナ語・英字の語）を回数・初出・glossary の有無つきで一覧する |
@@ -245,6 +246,8 @@ AI が JSON を直接書いて `gmm build scenes.json` としてもよい。
 - 書き出し時に曲ページから MP3 を探して `bgm/cache/` に取ってくる（取れなければ、手で置く場所をエラーに出す）
 - 曲の音の大きさ（LUFS）を測り、ナレーションの大きさにそろえる。`bgmVolume` はどの曲でも同じ意味になる
 - ナレーション中は自動で音量を下げ、最初と最後はフェードする
+- モーション動画では、曲のテンポと最初の小節の頭を測り（`gmm bgm tempo`）、場面の切れ目と動画の頭を曲の拍にそろえる。
+  測り間違える曲は、カタログにその曲の `bpm` / `offset`（最初の小節の頭の秒）を書くか、台本に `bgmOffset:` を書いて直す
 - クレジット「BGM: 魔王魂「曲名」」を `credits.txt` に出す
 
 魔王魂の音源は再配布禁止なので、リポジトリには入れない（`bgm/cache/` は Git 管理外）。カタログの説明は曲ページの説明から写したもので、
@@ -305,7 +308,7 @@ characters:                # 話者: 立ち絵（素材がなければ builtin-m
 ---
 layout: motion
 bpm: 120
-bgm: synth:drive         # 曲をコードで合成（drive / tech / epic / chill）
+bgm: maou:neorock54      # カタログの曲。テンポを測って、場面の切れ目を曲の拍にそろえる
 ---
 
 ## オープニング beats=8 transition=flash
@@ -317,6 +320,8 @@ bgm: synth:drive         # 曲をコードで合成（drive / tech / epic / chil
 ```
 
 - 場面の長さは拍（`beats=`）か、ナレーションの長さを拍に切り上げたもの。切れ目が音のアタマにそろう
+- 曲は魔王魂などのカタログの曲か手元のファイル。テンポと最初の小節の頭を測り、`bpm:` と動画の頭を曲に合わせる。
+  ネットワークがないときは、コードで合成する曲（`bgm: synth:drive` / `tech` / `epic` / `chill`）も使える
 - 組み込みの部品（`kinetic` `counter` `chart` `history` `hero` `backdrop` `shot` `three`）と、
   AI が書く場面のコード（`:::custom src=scenes/x.tsx`。React / SVG / Three.js）を混ぜて使える
 - 見本：`examples/motion/`（launch・mv・data-story・showcase）

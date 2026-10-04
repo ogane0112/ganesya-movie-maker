@@ -1,13 +1,15 @@
 // BGM のカタログ（bgm/<提供元>.json）。台本に `bgm: maou:acoustic50` と書くと、
 // カタログの曲を bgm/cache/ に取ってきて使う。カタログは `gmm bgm list` で一覧でき、
 // エージェントはその説明（雰囲気・合う場面）を読んで曲を選ぶ。
+// モーション動画では、曲のテンポと1小節目の頭（tempoOf）に場面の切れ目をそろえる。
 import { createHash } from "node:crypto";
 import { existsSync } from "node:fs";
-import { mkdir, readFile, readdir, stat, writeFile } from "node:fs/promises";
+import { mkdir, readFile, readdir, rm, stat, writeFile } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { z } from "zod";
-import { measureLoudness } from "./ffmpeg.js";
+import { ffmpeg, measureLoudness } from "./ffmpeg.js";
+import { estimateTempo, TEMPO_RATE, type Tempo } from "./tempo.js";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 export const BGM_DIR = join(root, "bgm");
@@ -23,6 +25,10 @@ const Track = z.object({
   fit: z.string().optional(),
   /** 人が聴いて確かめたか */
   heard: z.boolean().default(false),
+  /** テンポ（BPM）。書けば測った値より優先する（測り間違えた曲だけ書く） */
+  bpm: z.number().positive().optional(),
+  /** 曲の頭から最初の小節の頭までの秒数。書けば測った値より優先する */
+  offset: z.number().min(0).optional(),
 });
 const Catalog = z.object({
   provider: z.string(),
@@ -85,6 +91,24 @@ export async function fetchTrack(t: BgmTrack): Promise<string> {
   } catch (e) {
     throw new Error(`BGM「${t.catalog}:${t.id}」を取得できませんでした（${(e as Error).cause ?? (e as Error).message}）。${manual}`);
   }
+}
+
+/** 測り方を変えたら上げる（保存した結果を使わずに測り直す） */
+const TEMPO_VERSION = 1;
+
+/** 曲のテンポと1小節目の頭。測った結果は bgm/cache/.tempo/ に保存して使い回す */
+export async function tempoOf(file: string): Promise<Tempo> {
+  const key = createHash("sha1").update(`v${TEMPO_VERSION}:`).update(await readFile(file)).digest("hex").slice(0, 16);
+  const memo = join(CACHE, ".tempo", `${key}.json`);
+  if (existsSync(memo)) return JSON.parse(await readFile(memo, "utf8"));
+  const raw = join(CACHE, ".tempo", `${key}.f32`);
+  await mkdir(dirname(raw), { recursive: true });
+  await ffmpeg(["-i", file, "-vn", "-f", "f32le", "-ac", "1", "-ar", String(TEMPO_RATE), raw]);
+  const buf = await readFile(raw);
+  await rm(raw, { force: true });
+  const r = estimateTempo(new Float32Array(buf.buffer, buf.byteOffset, buf.byteLength / 4));
+  await writeFile(memo, JSON.stringify(r));
+  return r;
 }
 
 /**

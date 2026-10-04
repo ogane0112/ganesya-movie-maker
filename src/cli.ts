@@ -7,7 +7,7 @@ import { formatIssues } from "./inspect/rules.js";
 import { ScriptError } from "./parse.js";
 import { importPsd } from "./psd.js";
 import { findTermCandidates } from "./terms.js";
-import { cachePath, fetchTrack, findTrack, loadCatalogs } from "./bgm.js";
+import { cachePath, fetchTrack, findTrack, loadCatalogs, tempoOf } from "./bgm.js";
 import { existsSync } from "node:fs";
 import { defaultOutDir, loadSceneDoc, prepare, type PipelineOptions } from "./pipeline.js";
 import { overviewFootage } from "./biim/footage.js";
@@ -203,6 +203,24 @@ bgm
       if (!t) throw new Error(`「${name}」はカタログの名前ではありません（例: maou:acoustic50）`);
       console.log(`${name}\t${await fetchTrack(t)}`);
     }
+  });
+
+bgm
+  .command("tempo")
+  .description("曲のテンポ（BPM）と最初の小節の頭（秒）を測る。モーション動画はこの拍に場面の切れ目をそろえる")
+  .argument("<names...>", "曲の名前（例: maou:acoustic50）か音声ファイルのパス")
+  .action(async (names: string[]) => {
+    for (const name of names) {
+      const t = await findTrack(name);
+      const file = t ? await fetchTrack(t) : name;
+      if (!existsSync(file)) throw new Error(`「${name}」はカタログの名前でもファイルでもありません`);
+      const r = await tempoOf(file);
+      const bpm = t?.bpm ?? r.bpm;
+      const offset = t?.offset ?? r.offset;
+      const note = t?.bpm !== undefined || t?.offset !== undefined ? "（カタログの指定）" : r.confidence < 0.3 ? "（拍がはっきりしない曲。聴いて確かめる）" : "";
+      console.log(`${name}\tbpm: ${bpm}\t最初の小節の頭: ${offset.toFixed(3)} 秒\tはっきりさ: ${r.confidence.toFixed(2)}${note}`);
+    }
+    console.log("モーション動画の台本に bpm: <この値> と書く（半分・倍の値でも拍はそろう）");
   });
 
 program

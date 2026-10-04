@@ -55,7 +55,12 @@ export async function mixAudio(t: Timeline, outDir: string, output: string): Pro
     if (src) add(await load(src), scene.start, () => se?.volume ?? 0.5, frames - scene.start);
   }
   const spans = speechSpans(t);
-  if (bgm) add(await load(bgm.src), 0, (f) => bgmVolumeAt(f, t, spans), frames, true);
+  if (bgm) {
+    // 曲の start 秒目から鳴らす（モーション動画で小節の頭にそろえる）。ループもそこから
+    const clip = await load(bgm.src);
+    const skip = Math.min(Math.round((bgm.start ?? 0) * MIX_RATE), clip.length / 2 - 1);
+    add(clip.subarray(skip * 2), 0, (f) => bgmVolumeAt(f, t, spans), frames, true);
+  }
   // ゲーム実況: 録画の音（等速の区間だけ。倍速の区間は消す）。実況中は下げる
   if (t.run && t.run.gameVolume > 0) {
     const vol = t.run.gameVolume;

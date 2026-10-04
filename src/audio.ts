@@ -2,12 +2,13 @@
 //   bgm: maou:<曲ID>     BGM カタログ（bgm/*.json）の曲。bgm/cache/ に取ってくる
 //   bgm: <パス>          手元の音声ファイル
 //   どちらもループ再生し、ナレーション中は自動で音量を下げる（ダッキング）。音の大きさは自動でそろえる
+//   モーション動画では、曲のテンポ（songTempo）に場面の切れ目をそろえ、動画の頭を曲の小節の頭に合わせる
 //   se: default | none | <パス>   シーンが切り替わるときの効果音（default はコードで合成した短いチャイム）
 import { createHash } from "node:crypto";
 import { existsSync } from "node:fs";
 import { copyFile, mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, extname, join } from "node:path";
-import { fetchTrack, findTrack, loudnessOf } from "./bgm.js";
+import { fetchTrack, findTrack, loudnessOf, tempoOf, type BgmTrack } from "./bgm.js";
 import type { Meta, TimelineAudio } from "./schema.js";
 import { impact, SYNTH_PRESETS, synthesizeMusic, toWav, whoosh, type SynthPreset } from "./motion/synth.js";
 
@@ -21,7 +22,7 @@ export async function prepareAudioAssets(
   meta: Meta,
   scriptPath: string,
   outDir: string,
-  opts: { strict?: boolean; log?: (msg: string) => void; seconds?: number } = {},
+  opts: { strict?: boolean; log?: (msg: string) => void; seconds?: number; start?: number } = {},
 ): Promise<TimelineAudio> {
   const audio: TimelineAudio = {};
   // bgm: synth:<プリセット> は、動画の長さと bpm に合わせてその場で合成する
@@ -44,30 +45,56 @@ export async function prepareAudioAssets(
     };
     return { ...audio, ...(await prepareSe(meta, scriptPath, outDir)) };
   }
-  if (meta.bgm) {
-    const track = await findTrack(meta.bgm);
-    let file: string;
-    try {
-      file = track ? await fetchTrack(track) : join(dirname(scriptPath), meta.bgm);
-      if (!existsSync(file)) throw new Error(`BGM のファイルがありません: ${file}`);
-    } catch (e) {
-      // 検査やキーフレームでは BGM は鳴らないので、無しで進める。書き出しでは止める
-      if (opts.strict) throw e;
-      opts.log?.(`${(e as Error).message}（BGM なしで進めます）`);
-      return { ...audio, ...(await prepareSe(meta, scriptPath, outDir)) };
-    }
-    const { lufs } = await loudnessOf(file);
+  const song = await songFile(meta, scriptPath, opts);
+  if (song) {
+    const { lufs } = await loudnessOf(song.file);
     // 曲ごとの音の大きさの違いをならす（極端な増幅はしない）
     const gain = Math.min(4, Math.pow(10, (NARRATION_LUFS - lufs) / 20));
+    const { track } = song;
     audio.bgm = {
-      src: await copyAsset(file, outDir, "bgm"),
+      src: await copyAsset(song.file, outDir, "bgm"),
       volume: meta.bgmVolume * gain,
       duck: 0.4,
       lufs,
       credit: meta.bgmCredit ?? (track && `${track.credit}${track.title ? `「${track.title}」` : ""}`),
+      // 小節の頭から鳴らすときは、最初の拍を立てたいのでフェードインしない
+      ...(opts.start !== undefined && { start: opts.start, fadeIn: false }),
     };
   }
   return { ...audio, ...(await prepareSe(meta, scriptPath, outDir)) };
+}
+
+type SongOptions = { strict?: boolean; log?: (msg: string) => void };
+
+/** bgm: の曲（カタログの曲か手元のファイル）。合成する曲・BGM なし・取れなかったときは undefined */
+async function songFile(meta: Meta, scriptPath: string, opts: SongOptions): Promise<{ file: string; track?: BgmTrack } | undefined> {
+  if (!meta.bgm || meta.bgm.startsWith("synth:")) return undefined;
+  const track = await findTrack(meta.bgm);
+  try {
+    const file = track ? await fetchTrack(track) : join(dirname(scriptPath), meta.bgm);
+    if (!existsSync(file)) throw new Error(`BGM のファイルがありません: ${file}`);
+    return { file, track };
+  } catch (e) {
+    // 検査やキーフレームでは BGM は鳴らないので、無しで進める。書き出しでは止める
+    if (opts.strict) throw e;
+    opts.log?.(`${(e as Error).message}（BGM なしで進めます）`);
+    return undefined;
+  }
+}
+
+/**
+ * モーション動画：曲のテンポと、動画の頭にする曲の秒（最初の小節の頭）。
+ * カタログの bpm / offset、台本の bgmOffset があればそれを、なければ曲から測った値を使う
+ */
+export async function songTempo(meta: Meta, scriptPath: string, opts: SongOptions = {}): Promise<{ bpm: number; offset: number; confidence: number } | undefined> {
+  const song = await songFile(meta, scriptPath, { ...opts, log: undefined });
+  if (!song) return undefined;
+  const measured = await tempoOf(song.file);
+  return {
+    bpm: song.track?.bpm ?? measured.bpm,
+    offset: meta.bgmOffset ?? song.track?.offset ?? measured.offset,
+    confidence: song.track?.bpm ? 1 : measured.confidence,
+  };
 }
 
 /** モーション動画の場面転換の効果音（public/se/whoosh.wav・impact.wav）を書き出す */

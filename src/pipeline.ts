@@ -5,7 +5,7 @@ import { createHash } from "node:crypto";
 import { existsSync } from "node:fs";
 import { copyFile, mkdir, readFile, stat, writeFile } from "node:fs/promises";
 import { basename, dirname, extname, join } from "node:path";
-import { NARRATION_LUFS, prepareAudioAssets, writeTransitionSounds } from "./audio.js";
+import { NARRATION_LUFS, prepareAudioAssets, songTempo, writeTransitionSounds } from "./audio.js";
 import { writeCustomRegistry } from "./motion/custom.js";
 import { parseMotionScript } from "./motion/parse.js";
 import { buildMotionTimeline } from "./motion/timeline.js";
@@ -97,7 +97,7 @@ async function copyImages(doc: SceneDoc, input: string, outDir: string): Promise
   return doc;
 }
 
-/** モーション動画（layout: motion）：場面のコードの登録表・転換の効果音・拍に合わせたタイムライン・合成した曲 */
+/** モーション動画（layout: motion）：場面のコードの登録表・転換の効果音・拍に合わせたタイムライン・曲 */
 async function prepareMotion(
   doc: SceneDoc,
   audio: Awaited<ReturnType<typeof synthesizeAll>>,
@@ -109,18 +109,27 @@ async function prepareMotion(
   await prepareMotionAssets(doc, input, outDir);
   await writeTransitionSounds(outDir);
   const theme = await loadTheme(doc.meta.theme, input, outDir);
+  // 魔王魂などの曲なら、場面の切れ目を曲の拍にそろえる（台本の bpm: が曲の 2 倍・半分なら同じ拍の並びなのでそのまま）
+  const song = await songTempo(doc.meta, input, { strict: opts.requireVoice });
+  if (song) {
+    const same = [0.5, 1, 2].some((r) => Math.abs(doc.meta.bpm / song.bpm - r) < 0.005);
+    if (!same) opts.log(`BGM のテンポ ${song.bpm} BPM に合わせます（台本の bpm: ${doc.meta.bpm} は使いません。台本にも bpm: ${song.bpm} と書くと、曲がない環境でも同じ長さになります）`);
+    if (song.confidence < 0.3) opts.log(`BGM の拍がはっきりしない曲です（${song.bpm} BPM と測りました）。聴いてずれていたら、カタログに bpm / offset を書くか bgmOffset: で直してください`);
+    if (!same) doc.meta.bpm = song.bpm;
+  }
   const timeline = buildMotionTimeline(doc, audio, theme);
-  // 曲は動画の長さに合わせて合成するので、タイムラインの後で用意する
+  // 合成する曲は動画の長さに合わせるので、タイムラインの後で用意する
   timeline.audio = await prepareAudioAssets(doc.meta, input, outDir, {
     strict: opts.requireVoice,
     log: opts.log,
     seconds: timeline.durationInFrames / doc.meta.fps,
+    start: song?.offset,
   });
   await writeFile(join(outDir, "timeline.json"), JSON.stringify(timeline, null, 2));
   if (doc.meta.subtitles !== "none") await writeFile(join(outDir, "subtitles.srt"), toSrt(timeline));
   const credits = [doc.scenes.some((s) => s.sentences.length) ? audio.credit : undefined, timeline.audio.bgm?.credit].filter(Boolean);
   await writeFile(join(outDir, "credits.txt"), credits.join("\n") + (credits.length ? "\n" : ""));
-  opts.log(`タイムライン: ${timeline.scenes.length}場面 / ${(timeline.durationInFrames / doc.meta.fps).toFixed(1)}秒（${doc.meta.bpm} BPM）`);
+  opts.log(`タイムライン: ${timeline.scenes.length}場面 / ${(timeline.durationInFrames / doc.meta.fps).toFixed(1)}秒（${doc.meta.bpm} BPM${song ? `・曲の ${song.offset.toFixed(2)} 秒目から` : ""}）`);
   return { doc, timeline, outDir };
 }
 

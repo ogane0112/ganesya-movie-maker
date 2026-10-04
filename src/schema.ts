@@ -142,6 +142,8 @@ export const Meta = z.object({
   bgmVolume: z.number().min(0).max(1).default(0.3),
   /** BGM のクレジット表記（credits.txt に書く）。カタログの曲なら自動 */
   bgmCredit: z.string().optional(),
+  /** モーション動画: 曲の何秒目を動画の頭にするか。省略すると曲から測った最初の小節の頭（gmm bgm tempo で見られる） */
+  bgmOffset: z.number().min(0).optional(),
   /** 場面転換の効果音。default（組み込み）/ none / 音声ファイルのパス */
   se: z.string().default("default"),
   /** 読み上げ速度（VOICEVOX の speedScale） */
@@ -349,6 +351,8 @@ export type TimelineAudio = {
     credit?: string;
     /** false なら動画の頭でフェードインしない（合成した曲など、頭が拍の頭のもの） */
     fadeIn?: boolean;
+    /** 曲の何秒目から鳴らすか（モーション動画で、動画の頭を曲の小節の頭にそろえる）。ループもここから */
+    start?: number;
   };
   se?: { src: string; volume: number };
 };
