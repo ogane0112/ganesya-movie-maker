@@ -366,7 +366,8 @@ const CircleFace: React.FC<{ member: CastMember; scene: ResolvedScene; timeline:
 export const DUO = {
   /** 話者の見せ方：表示範囲の上からの割合と、画面上の高さ */
   figure: { ratio: 0.62, height: { overlay: 400, stage: 440 } },
-  overlay: { game: { x: 0, y: 0, width: 1500, height: 844 }, column: { x: 1516, y: 16, width: 388, bottom: 690 } }, // bottom: 列の下端（右の話者の頭の上）
+  // overlay のゲームは、右の列の手前まで・字幕の箱の上端（名札の上）まで広げる。column.bottom は列の下端（右の話者の頭の上）
+  overlay: { column: { x: 1584, y: 16, width: 320, bottom: 690 }, gap: 14 },
   stage: { game: { x: 320, y: 16, width: 1280, height: 720 } },
   /** 字幕の箱（二人の間） */
   subtitle: { overlay: { x: 430, width: 1060, bottom: 24 }, stage: { x: 470, width: 980, bottom: 24 } },
@@ -382,8 +383,13 @@ const DuoScene: React.FC<{ scene: ResolvedScene; timeline: Timeline; withAudio: 
   const member = cast.find((c) => c.name === showing?.speaker);
   const sub = timeline.theme.subtitle;
   const sb = DUO.subtitle[mode];
-  // overlay はゲームを左上に寄せる（録画が 16:9 より細ければ、その分だけ幅を詰める）
-  const game = mode === "overlay" ? fitLeft(DUO.overlay.game, run.width / run.height) : DUO.stage.game;
+  const lineH = Math.round(sub.fontSize * 1.35);
+  const subMinH = lineH * 2 + 36;
+  // overlay はゲームを左上に寄せ、右の列の手前・字幕の上端まで大きくする（録画の縦横比のまま）
+  const game =
+    mode === "overlay"
+      ? fitLeft(DUO.overlay.column.x - DUO.overlay.gap, H - sb.bottom - subMinH - 22 - DUO.overlay.gap, run.width / run.height)
+      : DUO.stage.game;
   return (
     <div data-gmm-scene={scene.id} style={{ position: "absolute", inset: 0, background: C.bg, color: C.text }}>
       {/* overlay ではゲームは背景（話者や字幕を上に重ねる前提なので、重なりの検査から外す） */}
@@ -409,7 +415,7 @@ const DuoScene: React.FC<{ scene: ResolvedScene; timeline: Timeline; withAudio: 
           width: sb.width,
           bottom: sb.bottom,
           // stage はゲームの下の段を埋める
-          minHeight: mode === "stage" ? H - (game.y + game.height) - 24 - sb.bottom : Math.round(sub.fontSize * 1.35) * 2 + 36,
+          minHeight: mode === "stage" ? H - (game.y + game.height) - 24 - sb.bottom : subMinH,
           boxSizing: "border-box",
           padding: "14px 28px 16px",
           borderRadius: 16,
@@ -438,7 +444,7 @@ const DuoScene: React.FC<{ scene: ResolvedScene; timeline: Timeline; withAudio: 
             {member.name}
           </div>
         )}
-        <div data-gmm-subtitle-text style={{ fontSize: sub.fontSize, lineHeight: `${Math.round(sub.fontSize * 1.35)}px`, fontWeight: 700, textAlign: "center" }}>
+        <div data-gmm-subtitle-text style={{ fontSize: sub.fontSize, lineHeight: `${lineH}px`, fontWeight: 700, textAlign: "center" }}>
           {showing?.text ?? ""}
         </div>
       </div>
@@ -503,13 +509,11 @@ const SideColumn: React.FC<{ scene: ResolvedScene; timeline: Timeline; frame: nu
         <div data-gmm-text style={{ fontSize: 28, color: C.sub, lineHeight: 1.3 }}>
           {timeline.meta.title}
         </div>
-        <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 12 }}>
-          <span data-gmm-text style={{ fontSize: 28, fontWeight: 700 }}>
-            {cur < run.splits.length ? run.splits[cur].name : "FINISH"}
-          </span>
-          <span data-gmm-text style={{ fontFamily: font, fontSize: 52, fontWeight: 700, color: cur >= run.splits.length ? C.done : C.text, fontVariantNumeric: "tabular-nums" }}>
-            {formatRunTime(runTime)}
-          </span>
+        <div data-gmm-text style={{ fontSize: 28, fontWeight: 700 }}>
+          {cur < run.splits.length ? run.splits[cur].name : "FINISH"}
+        </div>
+        <div data-gmm-text style={{ fontFamily: font, fontSize: 56, fontWeight: 700, lineHeight: 1.1, textAlign: "right", color: cur >= run.splits.length ? C.done : C.text, fontVariantNumeric: "tabular-nums" }}>
+          {formatRunTime(runTime)}
         </div>
         {done.map((s) => (
           <div key={s.name} style={{ display: "flex", justifyContent: "space-between", fontSize: 28, color: C.sub }}>
@@ -592,9 +596,8 @@ const SplitsCompact: React.FC<{ run: RunInfo; cur: number; font: string; accent:
   );
 };
 
-/** 箱の高さに合わせて録画の縦横比で幅を決め、左上に寄せる（箱より広くはしない） */
-function fitLeft(box: { x: number; y: number; width: number; height: number }, aspect: number) {
-  const width = Math.min(box.width, Math.round(box.height * aspect));
-  const height = Math.round(width / aspect);
-  return { x: box.x, y: box.y, width, height };
+/** 幅 maxW・高さ maxH に収まる最大の大きさを録画の縦横比で決め、左上に置く */
+function fitLeft(maxW: number, maxH: number, aspect: number) {
+  const width = Math.min(maxW, Math.round(maxH * aspect));
+  return { x: 0, y: 0, width, height: Math.round(width / aspect) };
 }
