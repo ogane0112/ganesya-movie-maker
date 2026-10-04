@@ -7,5 +7,5 @@
 - 部品を足したり見た目を変えたりしたら、`docs/parts.md` と見本（`docs/parts/gallery.md`）を直し、`scripts/parts-docs.sh` で画像を作り直す
 - 部品のルート要素には `data-gmm-el`、文字には `data-gmm-text` を付ける（検査が測る対象）
 - 乱数・現在時刻を使わない（同じ台本なら同じ動画になること）
-- 解説動画を作る・直すときはスキル `explainer-video` に従う。手順やルールを変えたら `.claude/skills/explainer-video/` も更新する
-- ゲーム実況（layout: biim）を作る・直すときはスキル `rta-video` に従う
+- 動画を作る・直すときは司令塔のスキル `gmm` から始め、工程ごとの機能スキル（`gmm-setup` / `gmm-marp` / `gmm-explainer-script` / `gmm-rta-script` / `gmm-terms` / `gmm-bgm` / `gmm-review` / `gmm-render`）を使う
+- スキルの分け方：`gmm` は順番と判断だけ、各 `gmm-*` は1つの工程だけ（入力・手順・終わりの条件）。CLI や書式を変えたら、その工程のスキルも直す。工程を足したら `gmm` の表にも足す

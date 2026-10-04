@@ -1,4 +1,4 @@
-// gmm: 台本から解説動画を作るCLI（F12: まずはCLI。MCPはこの上に薄くかぶせる）
+// gmm: 台本から動画を作るCLI（F12: エージェントは CLI を直接使う。手順は .claude/skills/ のスキル）
 import { Command, Option } from "commander";
 import { readFile, writeFile } from "node:fs/promises";
 import { basename, dirname, extname, join, relative, resolve } from "node:path";

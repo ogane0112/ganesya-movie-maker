@@ -158,8 +158,23 @@ characters:
 
 ## AI エージェントで作る
 
-Claude Code では、スキル `explainer-video`（`.claude/skills/explainer-video/`）が「〜の解説動画を作って」で使われる。
-構成 → 専門用語の洗い出し → 台本 → 検査 → キーフレームの目視 → 書き出し の手順と、台本の早見表・確認項目が入っている。台本の誤り（存在しない文番号、未知の部品など）は行番号付きで報告される。
+道具は CLI だけなので、Claude Code などのエージェントはそのまま使える（MCP サーバーは作らない）。
+手順は `.claude/skills/` のスキルにまとめてある。
+
+| スキル | 役割 |
+| --- | --- |
+| `gmm` | 司令塔。依頼（解説・掛け合い・スライドから・ゲーム実況・修正）を見分け、下の工程を順に使う |
+| `gmm-setup` | VOICEVOX・立ち絵・録画の準備 |
+| `gmm-marp` | Marp スライド → 台本の下書き |
+| `gmm-explainer-script` | 解説動画の構成と台本（1人／掛け合い） |
+| `gmm-rta-script` | 録画の下見と、時刻付きの実況台本 |
+| `gmm-terms` | 専門用語の洗い出しと説明 |
+| `gmm-bgm` | BGM 選び |
+| `gmm-review` | 検査とキーフレームの目視で直す |
+| `gmm-render` | 書き出して渡す |
+
+「〜の解説動画を作って」「RTA動画を作って」で `gmm` が使われ、「BGMだけ選んで」のような一部の依頼では工程のスキルが単独で使われる。
+台本の誤り（存在しない文番号、未知の部品など）は行番号付きで報告される。
 
 ### シーン定義JSON
 
@@ -277,7 +292,7 @@ characters:                # 話者: 立ち絵（素材がなければ builtin-m
 - タイマーは録画の時刻から実時間で出す（カット・倍速の区間でも実時間で進む）。区間を終えるとそのタイムが一覧に出る
 - ゲーム音はナレーションに音量をそろえ、実況中は自動で下げる。倍速区間は無音
 - 録画の下見：`gmm footage <録画>` が N 秒ごとのコマを時刻付きの一覧画像にする。AI エージェントはこれを見て実況を下書きする
-  （スキル `rta-video`）。仕組みを試す仮の録画は `examples/rta/make-sample-run.sh` で作れる。完成例は `examples/rta/sample-run.md`
+  （スキル `gmm-rta-script`）。仕組みを試す仮の録画は `examples/rta/make-sample-run.sh` で作れる。完成例は `examples/rta/sample-run.md`
 - 検査用のブラウザ（Playwright の Chromium）は H.264 を再生できないので、`check` / `frames` では録画のコマを ffmpeg で切り出して表示する。MP4 の書き出しには影響しない
 
 ## テーマ

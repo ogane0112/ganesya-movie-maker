@@ -1,8 +1,9 @@
 # AIエージェント向けの手順
 
 このリポジトリは台本から解説動画を作る CLI `gmm` です（詳細は README.md）。
-解説動画を作るときの詳しい手順は、スキル `.claude/skills/explainer-video/SKILL.md` にまとめてあります（Claude Code 以外のエージェントもこのファイルを読んで従ってください）。
-ゲーム実況・RTA 動画（`layout: biim`）は `.claude/skills/rta-video/SKILL.md` に従ってください。
+動画づくりの手順はスキルにまとめてあります（Claude Code 以外のエージェントもこれらのファイルを読んで従ってください）。
+まず司令塔の `.claude/skills/gmm/SKILL.md` を読み、依頼の種類に応じて、そこに並んだ工程ごとの機能スキル（`.claude/skills/gmm-*/SKILL.md`）を順に使います。
+道具はすべて CLI `./bin/gmm.mjs` です（MCP サーバーはありません）。
 動画を作る・直すときは次のループを回してください。
 
 1. 台本（Markdown）を書く。書式は README.md の「台本フォーマット」。秒数は書かない。`{n}`（n番目の文で出す）だけで指定する
