@@ -49,7 +49,11 @@ export async function mixAudio(t: Timeline, outDir: string, output: string): Pro
     }
   }
   const { bgm, se } = t.audio;
-  if (se) for (const scene of t.scenes.slice(1)) add(await load(se.src), scene.start, () => se.volume, frames - scene.start);
+  // 場面ごとの効果音（モーション動画の転換）があればそれを、なければ全体の効果音
+  for (const scene of t.scenes.slice(1)) {
+    const src = scene.se ?? se?.src;
+    if (src) add(await load(src), scene.start, () => se?.volume ?? 0.5, frames - scene.start);
+  }
   const spans = speechSpans(t);
   if (bgm) add(await load(bgm.src), 0, (f) => bgmVolumeAt(f, t, spans), frames, true);
   // ゲーム実況: 録画の音（等速の区間だけ。倍速の区間は消す）。実況中は下げる

@@ -32,7 +32,8 @@ export function bgmVolumeAt(frame: number, t: Timeline, spans: [number, number][
   if (!bgm) return 0;
   const k = speakingAmount(frame, spans);
   const fps = t.meta.fps;
-  const fade = interpolate(frame, [0, fps, t.durationInFrames - 2 * fps, t.durationInFrames], [0, 1, 1, 0], {
+  const fadeIn = bgm.fadeIn === false ? 1 : fps;
+  const fade = interpolate(frame, [0, fadeIn, t.durationInFrames - 2 * fps, t.durationInFrames], [bgm.fadeIn === false ? 1 : 0, 1, 1, 0], {
     extrapolateLeft: "clamp",
     extrapolateRight: "clamp",
   });
@@ -46,12 +47,17 @@ export const Sound: React.FC<{ timeline: Timeline }> = ({ timeline }) => {
     <>
       {/* プレビューの音量は 1 までなので切り詰める（書き出しの合成 src/mix.ts は正確な値を使う） */}
       {bgm && <Audio src={staticFile(bgm.src)} loop volume={(f) => Math.min(1, bgmVolumeAt(f, timeline, spans))} />}
-      {se &&
-        timeline.scenes.slice(1).map((scene) => (
-          <Sequence key={scene.id} from={scene.start} layout="none">
-            <Audio src={staticFile(se.src)} volume={se.volume} />
-          </Sequence>
-        ))}
+      {timeline.scenes.slice(1).map((scene) => {
+        // 場面ごとの効果音（モーション動画の転換）があればそれを、なければ全体の効果音
+        const src = scene.se ?? se?.src;
+        return (
+          src && (
+            <Sequence key={scene.id} from={scene.start} layout="none">
+              <Audio src={staticFile(src)} volume={se?.volume ?? 0.5} />
+            </Sequence>
+          )
+        );
+      })}
     </>
   );
 };

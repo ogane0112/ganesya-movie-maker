@@ -42,12 +42,14 @@ export const LIMITS = {
   maxSentenceSec: 12,
   /** ゲーム実況の小ネタ（!note）の文字数の上限。右の欄に収まる量 */
   maxNoteChars: 60,
+  /** モーション動画の大きな文字（kinetic）1行の文字数の上限 */
+  maxKineticChars: 16,
 };
 
 /** 上に部品を重ねてよい背景の部品（data-gmm-el="backdrop"） */
 export const BACKDROP = "backdrop";
 
-export function checkLayout(m: Measurement, sceneLabel: string, opts: { safeMargin?: number } = {}): Issue[] {
+export function checkLayout(m: Measurement, sceneLabel: string, opts: { safeMargin?: number; texts?: boolean } = {}): Issue[] {
   const margin = opts.safeMargin ?? LIMITS.safeMargin;
   const issues: Issue[] = [];
   const push = (severity: Issue["severity"], rule: string, message: string, hint: string) =>
@@ -56,7 +58,8 @@ export function checkLayout(m: Measurement, sceneLabel: string, opts: { safeMarg
   const safe = { left: margin, top: margin, right: m.canvas.width - margin, bottom: m.canvas.height - margin };
   for (const el of m.elements) {
     // 立ち絵は画面下端に接して置くのが正しいので、安全領域の検査から外す（重なりは検査する）
-    if (el.kind === "character") continue;
+    // 背景の層（全面の部品）も外す。中の文字は texts で見る
+    if (el.kind === "character" || el.kind === BACKDROP) continue;
     const r = el.rect;
     const sides: string[] = [];
     if (r.x < safe.left - 0.5) sides.push(`左 ${Math.round(safe.left - r.x)}px`);
@@ -93,6 +96,16 @@ export function checkLayout(m: Measurement, sceneLabel: string, opts: { safeMarg
   }
 
   for (const t of m.texts) {
+    // モーション動画：部品は全面の層なので、文字そのものが安全領域に収まっているかを見る
+    if (opts.texts) {
+      const r = t.rect;
+      const out = r.x < safe.left - 0.5 || r.y < safe.top - 0.5 || r.x + r.width > safe.right + 0.5 || r.y + r.height > safe.bottom + 0.5;
+      // 見えていない文字（画面の外に送った年表の項目など）は数えない
+      const visible = r.x + r.width > 0 && r.x < m.canvas.width && r.y + r.height > 0 && r.y < m.canvas.height;
+      if (out && visible && r.width > 0) {
+        push("error", "overflow", `文字「${t.text.slice(0, 16)}」が画面の端からはみ出しています`, "文字を短くするか、size= で小さくしてください");
+      }
+    }
     if (t.clipped) {
       push("error", "clipped", `「${t.text}」が枠から横にはみ出しています`, "文字を短くするか、改行してください（図解なら箱を減らすか direction=TB に）");
     }
@@ -247,6 +260,59 @@ export function checkBiimScene(scene: ResolvedScene, timeline: Timeline, isLast:
         hint: "要点だけに縮めるか、!note を2つに分けてください（右の欄に収まりません）",
       });
     }
+  }
+  return issues;
+}
+
+/** モーション動画の場面の検査（画面を測らずにわかるもの） */
+export function checkMotionScene(scene: ResolvedScene, timeline: Timeline): Issue[] {
+  const { fps } = timeline.meta;
+  const fpb = timeline.motion!.framesPerBeat;
+  const label = `${scene.id}「${scene.heading}」`;
+  const issues: Issue[] = [];
+  const last = scene.sentences.at(-1);
+  if (last && last.from + last.durationInFrames > scene.durationInFrames) {
+    const need = Math.ceil((last.from + last.durationInFrames + fps * 0.5) / fpb);
+    issues.push({
+      severity: "error",
+      sceneId: scene.id,
+      rule: "motion-narration-long",
+      message: `${label}: ナレーションが場面の長さ（${Math.round(scene.durationInFrames / fpb)}拍）に収まりません`,
+      hint: `beats= を ${need} 以上にするか、省略してナレーションに合わせてください（または文を減らす）`,
+    });
+  }
+  for (const s of scene.sentences) {
+    if (s.durationInFrames / fps > LIMITS.maxSentenceSec) {
+      issues.push({ severity: "warn", sceneId: scene.id, rule: "long-sentence", message: `${label}: 「${s.text.slice(0, 18)}…」が長すぎます`, hint: "文を2つに分けてください" });
+    }
+  }
+  for (const el of scene.motion ?? []) {
+    if (el.type !== "kinetic") continue;
+    for (const l of el.lines) {
+      const n = [...l.text.replace(/\*\*/g, "")].length;
+      if (n > LIMITS.maxKineticChars) {
+        issues.push({
+          severity: "warn",
+          sceneId: scene.id,
+          rule: "kinetic-long",
+          message: `${label}: 大きな文字「${l.text.slice(0, 12)}…」が長すぎます（${n}文字）`,
+          hint: `1行は${LIMITS.maxKineticChars}文字までにして、行を分けてください（大きな文字は一目で読める量に）`,
+        });
+      }
+    }
+    // 1行を出しておく時間が短すぎないか
+    el.lines.forEach((l, i) => {
+      const next = el.lines[i + 1]?.from ?? scene.durationInFrames;
+      if (el.mode === "replace" && next - l.from < fps * 0.4) {
+        issues.push({
+          severity: "warn",
+          sceneId: scene.id,
+          rule: "kinetic-fast",
+          message: `${label}: 大きな文字「${l.text.slice(0, 12)}」が${((next - l.from) / fps).toFixed(2)}秒で入れ替わります`,
+          hint: "every= を大きくするか、bpm を下げてください（0.4 秒以上見せる）",
+        });
+      }
+    });
   }
   return issues;
 }

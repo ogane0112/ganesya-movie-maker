@@ -5,7 +5,10 @@ import { createHash } from "node:crypto";
 import { existsSync } from "node:fs";
 import { copyFile, mkdir, readFile, writeFile } from "node:fs/promises";
 import { basename, dirname, extname, join } from "node:path";
-import { NARRATION_LUFS, prepareAudioAssets } from "./audio.js";
+import { NARRATION_LUFS, prepareAudioAssets, writeTransitionSounds } from "./audio.js";
+import { writeCustomRegistry } from "./motion/custom.js";
+import { parseMotionScript } from "./motion/parse.js";
+import { buildMotionTimeline } from "./motion/timeline.js";
 import { placeFootage, probeVideo } from "./biim/footage.js";
 import { buildBiimTimeline } from "./biim/timeline.js";
 import { loudnessOf } from "./bgm.js";
@@ -44,7 +47,7 @@ export async function loadSceneDoc(input: string): Promise<SceneDoc> {
   }
   // layout: biim ならゲーム実況の台本として読む
   const { meta } = parseFrontMatter(src.replace(/\r\n/g, "\n").split("\n"));
-  return meta.layout === "biim" ? parseBiimScript(src) : parseScript(src);
+  return meta.layout === "biim" ? parseBiimScript(src) : meta.layout === "motion" ? parseMotionScript(src) : parseScript(src);
 }
 
 export async function prepare(input: string, opts: PipelineOptions): Promise<{ doc: SceneDoc; timeline: Timeline; outDir: string }> {
@@ -59,6 +62,7 @@ export async function prepare(input: string, opts: PipelineOptions): Promise<{ d
     requireVoice: opts.requireVoice,
   });
   if (doc.meta.layout === "biim") return prepareBiim(doc, audio, input, outDir, opts);
+  if (doc.meta.layout === "motion") return prepareMotion(doc, audio, input, outDir, opts);
   // 掛け合い（speakers:）なら話者ごとの立ち絵、そうでなければ character: の1人
   const duo = Object.keys(doc.meta.speakers).length > 0;
   const cast = duo ? await loadCast(doc, input, outDir) : undefined;
@@ -77,8 +81,10 @@ export async function prepare(input: string, opts: PipelineOptions): Promise<{ d
 /** :::image の画像を public/images/ にコピーし、src を public からの相対パスにする */
 async function copyImages(doc: SceneDoc, input: string, outDir: string): Promise<SceneDoc> {
   for (const scene of doc.scenes) {
-    for (const el of scene.elements) {
-      if (el.type !== "image" || el.src.startsWith("images/")) continue;
+    // 解説動画の :::image と、モーション動画の :::shot
+    const withSrc = [...scene.elements.filter((e) => e.type === "image"), ...(scene.motion ?? []).filter((e) => e.type === "shot")] as { src: string }[];
+    for (const el of withSrc) {
+      if (el.src.startsWith("images/")) continue;
       const from = join(dirname(input), el.src);
       if (!existsSync(from)) throw new Error(`画像がありません: ${from}（シーン「${scene.heading}」）`);
       const body = await readFile(from);
@@ -89,6 +95,32 @@ async function copyImages(doc: SceneDoc, input: string, outDir: string): Promise
     }
   }
   return doc;
+}
+
+/** モーション動画（layout: motion）：場面のコードの登録表・転換の効果音・拍に合わせたタイムライン・合成した曲 */
+async function prepareMotion(
+  doc: SceneDoc,
+  audio: Awaited<ReturnType<typeof synthesizeAll>>,
+  input: string,
+  outDir: string,
+  opts: PipelineOptions,
+): Promise<{ doc: SceneDoc; timeline: Timeline; outDir: string }> {
+  await writeCustomRegistry(doc, input, outDir);
+  await writeTransitionSounds(outDir);
+  const theme = await loadTheme(doc.meta.theme, input, outDir);
+  const timeline = buildMotionTimeline(doc, audio, theme);
+  // 曲は動画の長さに合わせて合成するので、タイムラインの後で用意する
+  timeline.audio = await prepareAudioAssets(doc.meta, input, outDir, {
+    strict: opts.requireVoice,
+    log: opts.log,
+    seconds: timeline.durationInFrames / doc.meta.fps,
+  });
+  await writeFile(join(outDir, "timeline.json"), JSON.stringify(timeline, null, 2));
+  if (doc.meta.subtitles !== "none") await writeFile(join(outDir, "subtitles.srt"), toSrt(timeline));
+  const credits = [doc.scenes.some((s) => s.sentences.length) ? audio.credit : undefined, timeline.audio.bgm?.credit].filter(Boolean);
+  await writeFile(join(outDir, "credits.txt"), credits.join("\n") + (credits.length ? "\n" : ""));
+  opts.log(`タイムライン: ${timeline.scenes.length}場面 / ${(timeline.durationInFrames / doc.meta.fps).toFixed(1)}秒（${doc.meta.bpm} BPM）`);
+  return { doc, timeline, outDir };
 }
 
 /** ゲーム実況（layout: biim）：録画を調べて置き、話者ごとの立ち絵を読み、タイムラインを作る */

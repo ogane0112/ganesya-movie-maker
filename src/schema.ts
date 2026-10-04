@@ -2,6 +2,7 @@
 // 台本パーサの出力であり、AIが直接書いてもよい公開フォーマット。
 import { z } from "zod";
 import type { Theme } from "../remotion/theme";
+import { MotionElement, Transition, type MotionInfo, type ResolvedMotionElement } from "./motion/schema";
 
 /** 「n番目のナレーション文が始まるときに出す」の n（1始まり）。省略時はシーン冒頭。 */
 const At = z.number().int().min(1);
@@ -114,6 +115,12 @@ export const Scene = z.object({
   /** ゲーム実況: この区間（スプリット）が始まる録画の時刻（秒）。区間でないシーン（計測前）は省略 */
   splitAt: z.number().optional(),
   elements: z.array(Element),
+  /** モーション動画: 場面の部品（層。後ろほど上） */
+  motion: z.array(MotionElement).optional(),
+  /** モーション動画: 場面の長さ（拍）。省略時はナレーションの長さを拍に切り上げる */
+  beats: z.number().positive().optional(),
+  /** モーション動画: 場面の入り方 */
+  transition: Transition.optional(),
 });
 
 export const Meta = z.object({
@@ -140,7 +147,9 @@ export const Meta = z.object({
   /** 読み上げ速度（VOICEVOX の speedScale） */
   speed: z.number().default(1.0),
   /** 画面構成。explainer: 解説動画 / biim: ゲーム実況（biim システム） */
-  layout: z.enum(["explainer", "biim"]).default("explainer"),
+  layout: z.enum(["explainer", "biim", "motion"]).default("explainer"),
+  /** モーション動画: テンポ（1分あたりの拍数）。場面の長さと切り替わりは拍に合う */
+  bpm: z.number().positive().default(120),
   /** 話者の名前 → VOICEVOX の声（掛け合い用。台本では「名前: 発言」と書く） */
   speakers: z.record(z.string(), z.string()).default({}),
   /** 話者の名前 → 立ち絵（builtin / builtin-metan / characters/<名前>/） */
@@ -279,6 +288,13 @@ export type ResolvedScene = {
   globalStart?: number;
   /** ゲーム実況: このシーンで流す録画の区間（フレームはシーン先頭から） */
   footage?: FootageSegment[];
+  /** モーション動画: 部品・拍（シーン先頭からのフレーム）・入り方・検査で測るフレーム */
+  motion?: ResolvedMotionElement[];
+  beatFrames?: number[];
+  transition?: Transition;
+  checkFrames?: number[];
+  /** この場面の頭で鳴らす効果音（public/ からのパス）。なければ全体の se */
+  se?: string;
   /** ゲーム実況: 右の欄の小ネタ。from（シーン先頭から）以降、次の指定まで出す。空文字は消す */
   notes?: { from: number; text: string }[];
   heading: string;
@@ -331,6 +347,8 @@ export type TimelineAudio = {
     /** 元の曲の音の大きさ（LUFS）。volume はこれをナレーションにそろえたうえでの値 */
     lufs?: number;
     credit?: string;
+    /** false なら動画の頭でフェードインしない（合成した曲など、頭が拍の頭のもの） */
+    fadeIn?: boolean;
   };
   se?: { src: string; volume: number };
 };
@@ -348,6 +366,8 @@ export type Timeline = {
   cast?: CastMember[];
   /** ゲーム実況の情報 */
   run?: RunInfo;
+  /** モーション動画の拍の情報 */
+  motion?: MotionInfo;
 };
 
 export type CastMember = { name: string; color: string; character?: ResolvedCharacter };

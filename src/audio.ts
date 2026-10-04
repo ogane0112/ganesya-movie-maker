@@ -9,6 +9,7 @@ import { copyFile, mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, extname, join } from "node:path";
 import { fetchTrack, findTrack, loudnessOf } from "./bgm.js";
 import type { Meta, TimelineAudio } from "./schema.js";
+import { impact, SYNTH_PRESETS, synthesizeMusic, toWav, whoosh, type SynthPreset } from "./motion/synth.js";
 
 /**
  * ナレーション（VOICEVOX）の音の大きさ（LUFS, 実測）。BGM はこの大きさにそろえてから bgmVolume を掛けるので、
@@ -20,9 +21,29 @@ export async function prepareAudioAssets(
   meta: Meta,
   scriptPath: string,
   outDir: string,
-  opts: { strict?: boolean; log?: (msg: string) => void } = {},
+  opts: { strict?: boolean; log?: (msg: string) => void; seconds?: number } = {},
 ): Promise<TimelineAudio> {
   const audio: TimelineAudio = {};
+  // bgm: synth:<プリセット> は、動画の長さと bpm に合わせてその場で合成する
+  const synth = meta.bgm?.match(/^synth:(\w+)(?:@([A-G]#?))?$/);
+  if (synth) {
+    if (!SYNTH_PRESETS.includes(synth[1] as SynthPreset)) throw new Error(`bgm: synth: のプリセットは ${SYNTH_PRESETS.join(" / ")} です（${synth[1]}）`);
+    const file = join(outDir, ".synth", `${synth[1]}-${meta.bpm}-${(opts.seconds ?? 60).toFixed(2)}-${synth[2] ?? "A"}.wav`);
+    if (!existsSync(file)) {
+      await mkdir(dirname(file), { recursive: true });
+      await writeFile(file, toWav(synthesizeMusic({ preset: synth[1] as SynthPreset, bpm: meta.bpm, seconds: opts.seconds ?? 60, key: synth[2] })));
+    }
+    const { lufs } = await loudnessOf(file);
+    audio.bgm = {
+      src: await copyAsset(file, outDir, "bgm"),
+      volume: meta.bgmVolume * Math.min(4, Math.pow(10, (NARRATION_LUFS - lufs) / 20)),
+      duck: 0.4,
+      lufs,
+      // 曲の頭が拍の頭なので、フェードインしない
+      fadeIn: false,
+    };
+    return { ...audio, ...(await prepareSe(meta, scriptPath, outDir)) };
+  }
   if (meta.bgm) {
     const track = await findTrack(meta.bgm);
     let file: string;
@@ -47,6 +68,13 @@ export async function prepareAudioAssets(
     };
   }
   return { ...audio, ...(await prepareSe(meta, scriptPath, outDir)) };
+}
+
+/** モーション動画の場面転換の効果音（public/se/whoosh.wav・impact.wav）を書き出す */
+export async function writeTransitionSounds(outDir: string): Promise<void> {
+  await mkdir(join(outDir, "public/se"), { recursive: true });
+  await writeFile(join(outDir, "public/se/whoosh.wav"), toWav(whoosh()));
+  await writeFile(join(outDir, "public/se/impact.wav"), toWav(impact()));
 }
 
 async function prepareSe(meta: Meta, scriptPath: string, outDir: string): Promise<TimelineAudio> {

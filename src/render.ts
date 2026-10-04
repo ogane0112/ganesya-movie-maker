@@ -2,6 +2,7 @@
 // F10: 映像はシーンごとに書き出してキャッシュし、変わったシーンだけ作り直す。
 //      音声は全体を Node で合成し（src/mix.ts）、最後に ffmpeg でつなぐ。
 import { bundle } from "@remotion/bundler";
+import { bundleAliases, nodeModulesDir } from "./motion/custom.js";
 import { openBrowser, renderMedia, selectComposition } from "@remotion/renderer";
 import { spawn } from "node:child_process";
 import { createHash } from "node:crypto";
@@ -53,6 +54,8 @@ async function renderInputsHash(outDir: string): Promise<string> {
   await walk(join(root, "remotion"));
   h.update(await readFile(join(root, "package-lock.json")));
   for (const d of ["characters", "images", "fonts"]) await walk(join(outDir, "public", d));
+  // 場面のコード（:::custom）
+  for (const f of ["custom-scenes.tsx", "custom-scenes.hash"]) if (existsSync(join(outDir, f))) h.update(await readFile(join(outDir, f)));
   return h.digest("hex");
 }
 
@@ -118,7 +121,20 @@ async function renderSegments(
 
   if (todo.length) {
     log("バンドル中…");
-    const serveUrl = await bundle({ entryPoint: entry, publicDir: join(outDir, "public") });
+    const aliases = bundleAliases(outDir);
+    const serveUrl = await bundle({
+      entryPoint: entry,
+      publicDir: join(outDir, "public"),
+      // 場面のコード（:::custom）の登録表と道具を差し込む
+      webpackOverride: (c) => ({
+        ...c,
+        resolve: {
+          ...c.resolve,
+          alias: { ...(c.resolve?.alias as Record<string, string>), ...aliases },
+          modules: [...(c.resolve?.modules ?? ["node_modules"]), nodeModulesDir],
+        },
+      }),
+    });
     const browserExecutable = findBrowser() ?? null;
     const browser = await openBrowser("chrome", { browserExecutable, logLevel: "error" });
     try {
@@ -168,6 +184,8 @@ export async function preview(timeline: Timeline, outDir: string, port?: number)
   await writeFile(props, JSON.stringify({ timeline, withAudio: true }));
   const args = ["remotion", "studio", entry, `--props=${props}`, `--public-dir=${join(outDir, "public")}`];
   if (port) args.push(`--port=${port}`);
-  const child = spawn("npx", args, { cwd: root, stdio: "inherit" });
+  const aliases = bundleAliases(outDir);
+  const env = { ...process.env, GMM_CUSTOM_SCENES: aliases["gmm-custom-scenes"], GMM_MOTION_KIT: aliases["gmm-motion"] };
+  const child = spawn("npx", args, { cwd: root, stdio: "inherit", env });
   return new Promise((resolve) => child.on("exit", (code) => resolve(code ?? 0)));
 }

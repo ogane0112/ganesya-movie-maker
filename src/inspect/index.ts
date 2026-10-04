@@ -9,8 +9,9 @@ import { dirname, extname, join, normalize, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 import { chromium, type Page } from "playwright-core";
 import { findBrowser } from "../browser.js";
+import { bundleAliases, nodeModulesDir } from "../motion/custom.js";
 import type { ResolvedScene, Timeline } from "../schema.js";
-import { checkBiimScene, checkFaces, checkLayout, checkScene, checkSubtitle, checkTerms, type Issue } from "./rules.js";
+import { checkBiimScene, checkFaces, checkLayout, checkMotionScene, checkScene, checkSubtitle, checkTerms, type Issue } from "./rules.js";
 
 const here = dirname(fileURLToPath(import.meta.url));
 
@@ -24,6 +25,9 @@ async function buildPage(outDir: string): Promise<void> {
     jsx: "automatic",
     loader: { ".woff2": "file", ".woff": "file", ".ttf": "file" },
     define: { "process.env.NODE_ENV": '"production"' },
+    // 場面のコード（:::custom）の登録表と道具
+    alias: bundleAliases(outDir),
+    nodePaths: [nodeModulesDir],
     logLevel: "error",
   });
   await writeFile(
@@ -134,6 +138,10 @@ export async function runChecks(timeline: Timeline, outDir: string): Promise<Iss
   const session = await openInspector(timeline, outDir);
   try {
     for (const scene of timeline.scenes) {
+      if (timeline.motion) {
+        issues.push(...(await checkMotionFrames(session, scene, timeline)));
+        continue;
+      }
       const biim = !!timeline.run;
       issues.push(...(biim ? checkBiimScene(scene, timeline, scene === timeline.scenes.at(-1)) : checkScene(scene, timeline)));
       await session.show(finalFrame(scene));
@@ -151,6 +159,35 @@ export async function runChecks(timeline: Timeline, outDir: string): Promise<Iss
     }
   } finally {
     await session.close();
+  }
+  return issues;
+}
+
+/**
+ * モーション動画：部品が出て落ち着いたフレーム（checkFrames）ごとに測る（大きな文字は入れ替わるので、最後のフレームだけでは足りない）。
+ * 部品はどれも全面の層なので重なりは見ず、はみ出し・文字の大きさと、字幕と文字の重なりを見る。
+ */
+async function checkMotionFrames(session: InspectSession, scene: ResolvedScene, timeline: Timeline): Promise<Issue[]> {
+  const label = `${scene.id}「${scene.heading}」`;
+  const issues: Issue[] = [...checkMotionScene(scene, timeline)];
+  const seen = new Set<string>();
+  const push = (list: Issue[]) => {
+    for (const i of list) {
+      const key = `${i.rule}:${i.message}`;
+      if (!seen.has(key)) seen.add(key), issues.push(i);
+    }
+  };
+  for (const f of scene.checkFrames ?? [scene.durationInFrames - 1]) {
+    await session.show(scene.start + f);
+    const m = await session.page.evaluate(() => window.gmm.measure());
+    push(checkLayout(m, `${label}（${(f / timeline.motion!.framesPerBeat + 1).toFixed(1)}拍目）`, { texts: true }));
+  }
+  for (const s of scene.sentences) {
+    await session.show(scene.start + s.from + 1);
+    const sub = await session.page.evaluate(() => window.gmm.measureSubtitle());
+    if (!sub) continue;
+    const m = await session.page.evaluate(() => window.gmm.measure());
+    push(checkSubtitle(sub, m.texts.map((t) => ({ kind: `文字「${t.text.slice(0, 12)}」`, rect: t.rect })), scene.id, label));
   }
   return issues;
 }
@@ -175,7 +212,13 @@ export async function captureFrames(
     for (const scene of timeline.scenes) {
       if (opts.scenes && !opts.scenes.includes(scene.id)) continue;
       const targets: { frame: number; suffix: string; label: string }[] = [];
-      if (opts.mode === "steps") {
+      if (opts.mode === "steps" && timeline.motion) {
+        // モーション動画：部品が出て落ち着いたところを順に撮る
+        const fpb = timeline.motion.framesPerBeat;
+        (scene.checkFrames ?? []).slice(0, -1).forEach((f, i) =>
+          targets.push({ frame: scene.start + f, suffix: `-${i + 1}`, label: `${(f / fpb + 1).toFixed(1)}拍目` }),
+        );
+      } else if (opts.mode === "steps") {
         scene.sentences.forEach((s, i) =>
           // 出現アニメーション（約10フレーム）が終わったところを撮る
           targets.push({ frame: scene.start + Math.min(s.from + 15, scene.durationInFrames - 1), suffix: `-${i + 1}`, label: `${i + 1}文目「${s.text}」` }),

@@ -1,5 +1,6 @@
 import "@fontsource/noto-sans-jp/400.css";
 import "@fontsource/noto-sans-jp/700.css";
+import "@fontsource/noto-sans-jp/900.css";
 import "@fontsource/jetbrains-mono/400.css";
 import "katex/dist/katex.min.css";
 import { useEffect, useState } from "react";
@@ -10,6 +11,7 @@ import { appearStyle, useAppear } from "./anim";
 import { Character, DuoCast } from "./Character";
 import { computeLayout, duoCharacters, type Layout } from "./layout";
 import { BiimScene } from "./biim/BiimScene";
+import { MotionScene } from "./motion/MotionScene";
 import { Sound } from "./Sound";
 import { Subtitle } from "./Subtitle";
 import { Bullets } from "./parts/Bullets";
@@ -55,6 +57,8 @@ export const Video: React.FC<VideoProps> = ({ timeline, withAudio = true }) => {
         <Sequence key={scene.id} from={scene.start} durationInFrames={scene.durationInFrames} name={`${scene.id} ${scene.heading}`}>
           {timeline.run ? (
             <BiimScene scene={scene} timeline={timeline} withAudio={withAudio} />
+          ) : timeline.motion ? (
+            <MotionScene scene={scene} timeline={timeline} />
           ) : (
             <SceneView scene={scene} theme={theme} layout={layout} />
           )}
