@@ -2,7 +2,8 @@
 import { Img, interpolate, staticFile, useCurrentFrame } from "remotion";
 import type { CastMember, ResolvedCharacter, Timeline } from "../src/schema";
 import { BuiltinCharacter } from "./parts/BuiltinCharacter";
-import { BUILTIN_PALETTES } from "./builtinCharacter";
+import { BUILTIN_PALETTES, isManju } from "./builtinCharacter";
+import { ManjuCharacter } from "./parts/ManjuCharacter";
 import { CHARACTER_MARGIN, DUO_CHARACTER, duoWidth } from "./layout";
 
 
@@ -79,12 +80,15 @@ export const CharacterArt: React.FC<{ character: ResolvedCharacter; face: string
   bust,
 }) => {
   if (character.kind === "builtin") {
-    const art = (
+    const palette = BUILTIN_PALETTES[(character.variant ?? "builtin") as keyof typeof BUILTIN_PALETTES];
+    const art = isManju(character.variant) ? (
+      <ManjuCharacter face={face} mouthOpen={mouthOpen} blink={blink} variant={character.variant!} palette={palette} />
+    ) : (
       <BuiltinCharacter
         face={face}
         mouthOpen={mouthOpen}
         blink={blink}
-        palette={BUILTIN_PALETTES[(character.variant ?? "builtin") as keyof typeof BUILTIN_PALETTES]}
+        palette={palette}
       />
     );
     if (!bust) return art;
@@ -143,6 +147,8 @@ const CharacterLayers: React.FC<{
 
 /** 胸像として出す、表示範囲の上からの割合 */
 export function bustRatio(character: ResolvedCharacter, bust: boolean | number | undefined): number {
+  // まんじゅう型は顔だけなので、いつも全体を出す
+  if (character.kind === "builtin" && isManju(character.variant)) return 1;
   if (typeof bust === "number") return bust;
   return character.kind === "builtin" ? 0.7 : 0.45;
 }
@@ -150,7 +156,7 @@ export function bustRatio(character: ResolvedCharacter, bust: boolean | number |
 /** 胸像の縦横比（幅 / 高さ） */
 export function bustAspect(character: ResolvedCharacter, bust: boolean | number = true): number {
   const r = bustRatio(character, bust);
-  return character.kind === "builtin" ? 340 / (500 * r) : character.crop.width / (character.crop.height * r);
+  return character.kind === "builtin" ? character.width / (character.height * r) : character.crop.width / (character.crop.height * r);
 }
 
 /** 掛け合いでの、その話者のいまの表情・口・話しているか（動画全体のフレームで数える） */

@@ -37,6 +37,13 @@ curl -s localhost:50021/version
 - 分解した PNG と `layers.json` は Git に入れない（素材の再配布になるため。`.gitignore` 済み）
 - 表情の割り当て（`character.json`）は Git にある。新しい素材なら README の「character.json」を見て書く
 - 素材が手に入らなければ、組み込みキャラ（`builtin`、色違いの `builtin-metan`）で進め、そのことを利用者に伝える
+- ゆっくり風の動画は、組み込みのまんじゅう型（`manju-red` / `manju-witch` / `manju-green`）で素材なしで作れる。
+  手持ちのゆっくり素材（PNG のパーツ）を使うなら、`characters/<名前>/character.json` に `layersFile` なしで PNG の名前を並べる（README の「character.json」）
+
+### 外部の読み上げソフト（ゆっくりの声など。頼まれたときだけ）
+
+- 声に `exec:<名前>` と書くと、`~/.config/gmm/voices.json`（または環境変数 `GMM_VOICES`）のコマンドで読み上げる（`docs/skit.md`）
+- このファイルは利用者が自分で書くもの。コマンドの中身を勝手に決めない。ソフトの利用規約は利用者が確かめる
 
 ### ゲーム録画（ゲーム実況のとき）
 

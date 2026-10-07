@@ -172,34 +172,40 @@ export function splitSentences(text: string): string[] {
 /** {表記|よみ}: 字幕には表記を出し、読み上げはよみを使う */
 const READING = /\{([^{}|]+)\|([^{}]+)\}/g;
 
-export type Sentence = { text: string; speech?: string; face?: string; explains?: string[] };
+export type Sentence = { text: string; speech?: string; face?: string; explains?: string[]; marks?: { kind: string; value: string }[] };
 
 /**
  * 文頭の {face:表情} と {term:用語} を取り出す（順不同・複数可）。
  * 印だけの行は次の文に付ける。{term:用語} は「この文で用語を説明している」という印。
+ * marks に名前を渡すと、その印（ネタ動画の {act:jump} {fx:shake} {se:don} など）も取り出して marks に入れる。
  */
-export function takeSentenceMarkers(sentences: string[]): Sentence[] {
+export function takeSentenceMarkers(sentences: string[], marks: string[] = []): Sentence[] {
   const out: Sentence[] = [];
-  let pending: { face?: string; explains: string[] } = { explains: [] };
+  const kinds = ["face", "term", ...marks].join("|");
+  const re = new RegExp(`^\\{(${kinds}):([^{}]+)\\}\\s*`);
+  let pending: { face?: string; explains: string[]; marks: { kind: string; value: string }[] } = { explains: [], marks: [] };
   for (const s of sentences) {
     let raw = s;
     let face = pending.face;
     const explains = [...pending.explains];
-    for (let m; (m = raw.match(/^\{(face|term):([^{}]+)\}\s*/)); raw = raw.slice(m[0].length)) {
+    const found = [...pending.marks];
+    for (let m; (m = raw.match(re)); raw = raw.slice(m[0].length)) {
       if (m[1] === "face") face = m[2].trim();
-      else explains.push(m[2].trim());
+      else if (m[1] === "term") explains.push(m[2].trim());
+      else found.push({ kind: m[1], value: m[2].trim() });
     }
     if (!raw) {
-      pending = { face, explains };
+      pending = { face, explains, marks: found };
       continue;
     }
-    pending = { explains: [] };
+    pending = { explains: [], marks: [] };
     const text = raw.replace(READING, "$1");
     out.push({
       text,
       ...(text !== raw && { speech: raw.replace(READING, "$2") }),
       ...(face && { face }),
       ...(explains.length && { explains }),
+      ...(found.length && { marks: found }),
     });
   }
   return out;

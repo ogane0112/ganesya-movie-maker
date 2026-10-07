@@ -55,6 +55,14 @@ export const Sound: React.FC<{ timeline: Timeline }> = ({ timeline }) => {
           volume={(f) => Math.min(1, bgmVolumeAt(f, timeline, spans))}
         />
       )}
+      {/* 場面の途中の効果音（ネタ動画の !se） */}
+      {timeline.scenes.flatMap((scene) =>
+        (scene.sounds ?? []).map((snd, i) => (
+          <Sequence key={`${scene.id}-${i}`} from={scene.start + snd.from} layout="none">
+            <Audio src={staticFile(snd.src)} volume={Math.min(1, snd.volume)} />
+          </Sequence>
+        )),
+      )}
       {timeline.scenes.slice(1).map((scene) => {
         // 場面ごとの効果音（モーション動画の転換）があればそれを、なければ全体の効果音
         const src = scene.se ?? se?.src;

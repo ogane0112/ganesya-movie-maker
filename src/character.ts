@@ -10,7 +10,7 @@ import { existsSync } from "node:fs";
 import { copyFile, mkdir, readFile } from "node:fs/promises";
 import { basename, dirname, join, resolve } from "node:path";
 import { z } from "zod";
-import { BUILTIN_CHARACTER, BUILTIN_FACES, BUILTIN_PALETTES } from "../remotion/builtinCharacter.js";
+import { BUILTIN_CHARACTER, BUILTIN_FACES, BUILTIN_PALETTES, isManju, MANJU_CHARACTER } from "../remotion/builtinCharacter.js";
 import type { LayersFile } from "./psd.js";
 import type { CastMember, CharacterLayer, CharacterStates, ResolvedCharacter, SceneDoc } from "./schema.js";
 
@@ -87,7 +87,7 @@ async function loadCharacterSpec(
   let faces: string[];
   if (spec in BUILTIN_PALETTES) {
     const palette = BUILTIN_PALETTES[spec as keyof typeof BUILTIN_PALETTES];
-    character = { kind: "builtin", ...BUILTIN_CHARACTER, name: palette.name, variant: spec };
+    character = { kind: "builtin", ...BUILTIN_CHARACTER, ...(isManju(spec) && MANJU_CHARACTER), name: palette.name, variant: spec };
     faces = [...BUILTIN_FACES];
   } else {
     const dir = [spec, join(dirname(scriptPath), "characters", spec), join("characters", spec)].find((d) =>

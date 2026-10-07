@@ -4,6 +4,8 @@ import type { CastMember, ResolvedScene, RunInfo, Timeline } from "../../src/sch
 import { bustAspect, CharacterArt, isBlinking } from "../Character";
 import type { Theme } from "../theme";
 import { currentSplit, formatRunTime, runTimeAt, videoTimeAt } from "./run";
+import { isManju } from "../builtinCharacter";
+import { outline } from "../skit/SkitScene";
 
 export const BIIM = { pad: 24, bandHeight: 262, panelMin: 420, bustHeight: 226 };
 const C = { bg: "#0f1318", panel: "#1a2028", line: "#2c3540", text: "#f2f5f7", sub: "#9aa7b4", done: "#7fd17f" };
@@ -29,6 +31,8 @@ export const BiimScene: React.FC<{ scene: ResolvedScene; timeline: Timeline; wit
       return <ClassicScene {...props} />;
     case "simple":
       return <SimpleScene {...props} />;
+    case "yukkuri":
+      return <YukkuriScene {...props} />;
     default:
       return <DuoScene {...props} />;
   }
@@ -601,3 +605,73 @@ function fitLeft(maxW: number, maxH: number, aspect: number) {
   const width = Math.min(maxW, Math.round(maxH * aspect));
   return { x: 0, y: 0, width, height: Math.round(width / aspect) };
 }
+
+// ---- ゆっくり実況（biimFrame: yukkuri） ----
+// ゲームを画面いっぱいに出し、左下と右下に小さな話者（まんじゅう型が似合う）、字幕は話者の色の文字に白と黒の縁。
+// 右上にタイマー、左上に小ネタ（!note）。
+export const YUKKURI = { figure: 270, subtitle: { x: 330, width: 1260, bottom: 26 }, fontSize: 54 };
+
+const YukkuriScene: React.FC<{ scene: ResolvedScene; timeline: Timeline; withAudio: boolean }> = ({ scene, timeline, withAudio }) => {
+  const frame = useCurrentFrame();
+  const run = timeline.run!;
+  const { fps } = timeline.meta;
+  const { showing, speaking } = currentLine(scene, frame);
+  const cast = timeline.cast ?? [];
+  const member = cast.find((c) => c.name === showing?.speaker);
+  const runTime = runTimeAt((scene.globalStart ?? scene.start) + frame, run, fps);
+  const cur = currentSplit(runTime, run);
+  const note = [...(scene.notes ?? [])].reverse().find((n) => n.from <= frame);
+  const lineH = Math.round(YUKKURI.fontSize * 1.3);
+  const card: React.CSSProperties = { position: "absolute", top: 20, boxSizing: "border-box", padding: "10px 18px", borderRadius: 12, background: "rgba(10, 12, 16, 0.72)", color: "#fff" };
+  return (
+    <div data-gmm-scene={scene.id} style={{ position: "absolute", inset: 0, background: "#000", color: C.text }}>
+      <div data-gmm-el="backdrop" style={{ position: "absolute", inset: 0 }}>
+        <Footage scene={scene} timeline={timeline} withAudio={withAudio} frame={frame} />
+      </div>
+      <div data-gmm-el="panel" style={{ ...card, right: 20, minWidth: 300, textAlign: "right" }}>
+        <div data-gmm-text style={{ fontSize: 28, color: C.sub }}>
+          {cur < run.splits.length ? run.splits[cur].name : "FINISH"}
+        </div>
+        <div data-gmm-text style={{ fontFamily: timeline.theme.codeFontFamily, fontSize: 52, fontWeight: 700, lineHeight: 1.1, color: cur >= run.splits.length ? C.done : C.text, fontVariantNumeric: "tabular-nums" }}>
+          {formatRunTime(runTime)}
+        </div>
+      </div>
+      {note?.text && (
+        <div data-gmm-el="note" style={{ ...card, left: 20, maxWidth: 620 }}>
+          <div data-gmm-text style={{ fontSize: 30, lineHeight: 1.45, wordBreak: "auto-phrase" as React.CSSProperties["wordBreak"] }}>
+            {note.text}
+          </div>
+        </div>
+      )}
+      {cast.slice(0, 2).map((m, i) => {
+        const ch = m.character;
+        if (!ch) return null;
+        const { face, mouthOpen } = speakerState(m, scene, timeline, frame);
+        const h = YUKKURI.figure;
+        const w = Math.round((h * ch.width) / ch.height);
+        const talking = speaking === m.name;
+        const hop = talking ? (isManju(ch.kind === "builtin" ? ch.variant : undefined) ? -Math.abs(Math.sin((frame / fps) * Math.PI * 2.4)) * 10 : Math.sin((frame / fps) * Math.PI * 1.6) * 4) : 0;
+        const side = i === 0 ? "left" : "right";
+        const facing = ch.kind === "layers" ? ch.facing : undefined;
+        const flip = (side === "left" && facing === "left") || (side === "right" && facing === "right");
+        return (
+          <div
+            key={m.name}
+            data-gmm-el="character"
+            style={{ position: "absolute", bottom: -8, [side]: 12, width: w, height: h, transform: `translateY(${hop}px) scaleX(${flip ? -1 : 1})`, transformOrigin: "bottom center" }}
+          >
+            <CharacterArt character={ch} face={face} mouthOpen={mouthOpen} blink={isBlinking(frame + i * 47, fps)} />
+          </div>
+        );
+      })}
+      <div data-gmm-subtitle style={{ position: "absolute", left: YUKKURI.subtitle.x, width: YUKKURI.subtitle.width, bottom: YUKKURI.subtitle.bottom, minHeight: lineH * 2, display: "flex", alignItems: "flex-end", justifyContent: "center" }}>
+        <div
+          data-gmm-subtitle-text
+          style={{ fontSize: YUKKURI.fontSize, lineHeight: `${lineH}px`, fontWeight: 900, textAlign: "center", color: member?.color ?? "#ffffff", textShadow: `${outline(5, "#ffffff")}, ${outline(9, "#1d1a24", 24)}` }}
+        >
+          {showing?.text ?? ""}
+        </div>
+      </div>
+    </div>
+  );
+};

@@ -1,7 +1,8 @@
 # ganesya-movie-maker (`gmm`)
 
 台本（Markdown）を書けば、解説動画（16:9・日本語ナレーション付き）や、ゲーム実況・RTA 動画（biim システム）、
-モーション動画（紹介・MV 風・データの物語・3D。曲もコードで合成）を作るCLI。
+モーション動画（紹介・MV 風・データの物語・3D。曲もコードで合成）、
+ネタ動画（縦長ショート・ゆっくり解説・アニメ寸劇。テロップ・効果音・キャラの動き）を作るCLI。
 要件は [docs/requirements.md](docs/requirements.md)。
 
 LLM が苦手な2点をツール側で肩代わりする：
@@ -43,6 +44,8 @@ npm install
 | `gmm marp <スライド.md>` | Marp スライドを台本の下書きにする（下記「Marp スライドから作る」） |
 | `gmm terms <台本>` | 専門用語の候補（カタカナ語・英字の語）を回数・初出・glossary の有無つきで一覧する |
 | `gmm character import <psd> <dir>` | 立ち絵 PSD をレイヤーごとの PNG に分解する（下記「立ち絵」） |
+| `gmm new <型> <台本>` | 見本から新しい台本を作る（short / yukkuri / anime / yukkuri-game / explainer / motion） |
+| `gmm se list` | ネタ動画の効果音（コードで合成）・動き・画面効果・テロップの一覧 |
 
 共通オプション: `--tts auto|voicevox|silent`、`--voicevox-url`、`-o <dir>`。
 進行状況は stderr、結果は stdout に出る。
@@ -171,6 +174,7 @@ characters:
 | `gmm-explainer-script` | 解説動画の構成と台本（1人／掛け合い） |
 | `gmm-rta-script` | 録画の下見と、時刻付きの実況台本 |
 | `gmm-motion-script` | モーション動画の構成と台本（部品／場面のコード） |
+| `gmm-skit-script` | ネタ動画（ショート・ゆっくり・寸劇）の構成と台本 |
 | `gmm-terms` | 専門用語の洗い出しと説明 |
 | `gmm-bgm` | BGM 選び |
 | `gmm-review` | 検査とキーフレームの目視で直す |
@@ -192,6 +196,7 @@ AI が JSON を直接書いて `gmm build scenes.json` としてもよい。
 - `character: builtin` — 組み込みキャラ（SVG）。素材なしで試せる。表情: normal / smile / surprised / troubled / think
 - `character: zundamon` — `characters/zundamon/`（坂本アヒル氏の「ずんだもん立ち絵素材」）。表情: normal / smile / surprised / troubled / think / angry
 - `character: metan` — `characters/metan/`（坂本アヒル氏の「四国めたん立ち絵素材」）。表情は zundamon と同じ
+- `character: manju-red` / `manju-witch` / `manju-green` — 組み込みの「まんじゅう型」（ゆっくり風の顔だけのキャラ。SVG）。表情は builtin と同じ
 
 ### 立ち絵の準備（ずんだもん・四国めたん）
 
@@ -262,6 +267,7 @@ AI が JSON を直接書いて `gmm build scenes.json` としてもよい。
 - `classic` — biim システムのおなじみの枠（左上にゲーム、右に区間とタイマー、左下の丸に話している人の顔）。
   `frameImage: frame.png`（1920×1080 の透過 PNG）で枠を画像に差し替えられる
 - `simple` — 箱を並べただけの画面
+- `yukkuri` — ゆっくり実況。ゲームを画面いっぱいに出し、左下と右下に小さな話者（`manju-red` / `manju-witch` が似合う）、字幕は話者の色の文字
 
 話者は `speakers:` に書いた順に左・右に立つ。立ち絵の `character.json` の `facing`（顔の向き）を見て、内側を向くよう左右反転する。
 名札と字幕の枠は `character.json` の `color` の色になる。
@@ -326,9 +332,47 @@ bgm: maou:neorock54      # カタログの曲。テンポを測って、場面�
   AI が書く場面のコード（`:::custom src=scenes/x.tsx`。React / SVG / Three.js）を混ぜて使える
 - 見本：`examples/motion/`（launch・mv・data-story・showcase）
 
+## ネタ動画・ショート・ゆっくり・寸劇
+
+フロントマターに `layout: skit` と書くと、台詞に合わせてテロップ・効果音・画面効果・キャラクターの動きが入る動画になる（[docs/skit.md](docs/skit.md)）。
+`format: short` で縦長（1080×1920）のショート動画、`style:` で見た目の型（`meme` / `yukkuri` / `anime`）を選ぶ。
+
+```markdown
+---
+layout: skit
+format: short
+style: meme
+banner: 締め切り前夜あるある
+speakers:
+  ずんだもん: zundamon
+  めたん: "metan pitch=0.05"     # 声の高さ・速さを変えられる
+characters:
+  ずんだもん: builtin
+  めたん: builtin-metan           # ゆっくり風なら manju-red / manju-witch
+---
+
+## 起 bg=sunburst
+!caption 締め切り前日の夜 style=impact    ← 指示の行。次の台詞が始まるときに起きる
+!se dodon
+ずんだもん: {face:smile}{act:jump}今日は余裕なのだ！   ← 文頭の {act:動き} {fx:画面効果} {se:効果音}
+めたん: {fx:zoom}{se:don}本当に？
+!wait 0.5                               ← 間
+ずんだもん: {act:fall}{se:zukoo}忘れてたのだ。
+!se chin                                ← 場面の最後の指示は、最後の台詞の後（オチ）
+```
+
+- 指示：`!caption`（テロップ。impact / shout / pop / note / title）・`!stamp`（！？など）・`!pic`（画像）・`!enter` `!exit` `!move`（出入り）・
+  `!act` `!face`（話者以外のリアクション）・`!fx` `!se`・`!wait`
+- 動き：jump / shake / nod / spin / flip / grow / shrink / fall / tremble。画面効果：shake / flash / zoom / lines（集中線）/ mono
+- 効果音 14 種（ドン・チーン・ズコー・ドラムロール…）はコードで合成するので、素材の権利を気にしなくてよい（`gmm se list`）
+- 背景（`## 見出し bg=`）：色・模様（sunburst / dots / stripes / gradient / sky / speed / night）・画像・動画
+- 声に `exec:<名前>` と書くと、利用者が `~/.config/gmm/voices.json` に書いたコマンド（AquesTalk など）で読み上げる
+- ゲーム録画のゆっくり実況は `layout: biim` の `biimFrame: yukkuri`（`examples/rta/yukkuri-run.md`）
+- 見本：`examples/skit/`（short・yukkuri・anime）。`gmm new short my.md` で見本から始められる
+
 ## テーマ
 
-`theme:` に組み込みテーマ名（`wakaba` / `dark`）か、テーマ JSON のパスを書く。JSON は変えたい項目だけ書けばよい。
+`theme:` に組み込みテーマ名（`wakaba` / `dark` / `night` / `pop`）か、テーマ JSON のパスを書く。JSON は変えたい項目だけ書けばよい。
 
 ```json
 {
@@ -381,6 +425,7 @@ src/
   character.ts       F14 立ち絵の読み込み（character.json → 表情ごとのレイヤー集合）
   psd.ts             F14 PSD → レイヤー PNG
   biim/              F18/F19 ゲーム実況：台本パーサ・タイムライン（カット・倍速・待ち行列）・録画の下見
+  skit/              ネタ動画：台本パーサ（指示の行・文頭の印）・タイムライン（舞台の状態の引き継ぎ）・効果音の合成
 remotion/
   Video.tsx          全体の構成（シーン → 見出し + 部品）
   parts/             F4 部品集（Title / Bullets / Code / Text / Diagram / Math / Image）と組み込みキャラ
@@ -388,6 +433,7 @@ remotion/
   Subtitle.tsx       F8 焼き込み字幕
   Sound.tsx          F9 BGM（ダッキング）・効果音
   biim/              F18 ゲーム実況の画面とタイマー
+  skit/              ネタ動画の舞台（背景・立ち絵の動き・テロップ・画面効果・字幕／吹き出し）
   layout.ts          画面の割り付け（立ち絵・字幕の分の余白）
   theme.ts           組み込みテーマとテーマの型
 ```

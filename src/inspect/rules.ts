@@ -44,6 +44,13 @@ export const LIMITS = {
   maxNoteChars: 60,
   /** モーション動画の大きな文字（kinetic）1行の文字数の上限 */
   maxKineticChars: 16,
+  /** ネタ動画：大きなテロップ（impact / shout / title）1行の文字数の上限と、出しておく時間の下限（秒） */
+  maxCaptionChars: 14,
+  minCaptionSec: 0.8,
+  /** ネタ動画：1つの台詞の長さの上限（秒）。テンポが落ちる */
+  maxSkitSentenceSec: 8,
+  /** ネタ動画：スタンプの文字数の上限 */
+  maxStampChars: 6,
 };
 
 /** 上に部品を重ねてよい背景の部品（data-gmm-el="backdrop"） */
@@ -345,6 +352,37 @@ export function checkMotionScene(scene: ResolvedScene, timeline: Timeline): Issu
         });
       }
     });
+  }
+  return issues;
+}
+
+/** ネタ動画の場面の検査（画面を測らずにわかるもの）：台詞・テロップ・スタンプの長さ */
+export function checkSkitScene(scene: ResolvedScene, timeline: Timeline): Issue[] {
+  const { fps } = timeline.meta;
+  const label = `${scene.id}「${scene.heading}」`;
+  const issues: Issue[] = [];
+  const push = (severity: Issue["severity"], rule: string, message: string, hint: string) =>
+    issues.push({ severity, sceneId: scene.id, rule, message: `${label}: ${message}`, hint });
+  for (const s of scene.sentences) {
+    if (s.durationInFrames / fps > LIMITS.maxSkitSentenceSec) {
+      push("warn", "long-sentence", `「${s.text.slice(0, 18)}…」が長すぎます（${(s.durationInFrames / fps).toFixed(1)}秒）`, "台詞を2つに分けるか、相手の相づちを挟んでください（ネタ動画はテンポが命）");
+    }
+  }
+  const sk = scene.skit;
+  if (!sk) return issues;
+  for (const c of sk.captions) {
+    const longest = Math.max(...c.text.split("\\n").map((l) => [...l].length));
+    if (["impact", "shout", "title"].includes(c.style) && longest > LIMITS.maxCaptionChars) {
+      push("warn", "caption-long", `テロップ「${c.text.slice(0, 12)}…」が長すぎます（${longest}文字）`, `大きなテロップは1行${LIMITS.maxCaptionChars}文字まで。\\n で改行するか、短い言葉にしてください`);
+    }
+    if ((c.to - c.from) / fps < LIMITS.minCaptionSec) {
+      push("warn", "short-visible", `テロップ「${c.text.slice(0, 12)}」が${((c.to - c.from) / fps).toFixed(1)}秒で消えます`, "次のテロップを1つ後の台詞にずらすか、!wait で間を置いてください");
+    }
+  }
+  for (const st of sk.stamps) {
+    if ([...st.text].length > LIMITS.maxStampChars) {
+      push("warn", "stamp-long", `スタンプ「${st.text}」が長すぎます`, `スタンプは${LIMITS.maxStampChars}文字まで（長い言葉は !caption で）`);
+    }
   }
   return issues;
 }

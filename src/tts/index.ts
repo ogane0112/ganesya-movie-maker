@@ -5,7 +5,8 @@ import { existsSync } from "node:fs";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import type { AudioTiming, SceneDoc, SentenceAudio } from "../schema.js";
-import { silentWav, wavSeconds } from "./wav.js";
+import { externalSynthesize, loadExternalVoice, type ExternalVoice } from "./external.js";
+import { mouthFromWav, silentWav, wavSeconds } from "./wav.js";
 import { mouthFromQuery, resolveVoicevoxSpeaker, voicevoxAvailable, voicevoxSynthesize } from "./voicevox.js";
 
 export type TtsProvider = "auto" | "voicevox" | "silent";
@@ -18,11 +19,35 @@ export type TtsOptions = {
   requireVoice?: boolean;
 };
 
+/**
+ * 声の指定。「名前 key=値 …」で VOICEVOX の声の高さなどを変えられる（例: "zundamon pitch=0.05 speed=1.2"）。
+ * exec:<名前> は外部の読み上げソフト（src/tts/external.ts）
+ */
+export type VoiceSpec = { name: string; pitch?: number; intonation?: number; speed?: number; volume?: number };
+
+export function parseVoiceSpec(spec: string): VoiceSpec {
+  const [name, ...rest] = spec.trim().split(/\s+/);
+  const out: VoiceSpec = { name };
+  for (const kv of rest) {
+    const m = kv.match(/^(pitch|intonation|speed|volume)=(-?[\d.]+)$/);
+    if (!m) throw new Error(`声の指定「${spec}」の ${kv} がわかりません（使えるのは pitch= intonation= speed= volume=）`);
+    out[m[1] as "pitch"] = Number(m[2]);
+  }
+  return out;
+}
+
+type Voice = { kind: "voicevox"; id: number; name: string; spec: VoiceSpec } | { kind: "exec"; voice: ExternalVoice; name: string } | { kind: "silent"; spec: VoiceSpec };
+
 export async function synthesizeAll(doc: SceneDoc, outDir: string, opts: TtsOptions): Promise<AudioTiming> {
   const log = opts.log ?? (() => {});
+  // 掛け合いでは話者ごとに声が違う（speakers: 名前 → 声）。声ごとに一度だけ話者IDを調べる
+  const voiceOf = (name?: string) => (name && doc.meta.speakers[name]) || doc.meta.voice;
+  const specs = [...new Set(doc.scenes.flatMap((s) => s.sentences.map((x) => voiceOf(x.speaker))))];
+  // 外部の読み上げソフトだけなら VOICEVOX は要らない
+  const needsVoicevox = specs.some((v) => !v.startsWith("exec:"));
   let provider = opts.provider;
   if (provider === "auto") {
-    provider = (await voicevoxAvailable(opts.voicevoxUrl)) ? "voicevox" : "silent";
+    provider = !needsVoicevox || (await voicevoxAvailable(opts.voicevoxUrl)) ? "voicevox" : "silent";
     if (provider === "silent" && opts.requireVoice) {
       throw new Error(
         `VOICEVOX（${opts.voicevoxUrl}）に接続できません。エンジンを起動してからやり直してください（無音のまま書き出すなら --tts silent）`,
@@ -32,11 +57,15 @@ export async function synthesizeAll(doc: SceneDoc, outDir: string, opts: TtsOpti
       log(`VOICEVOX（${opts.voicevoxUrl}）に接続できないため、無音の仮音声（長さは文字数から推定）で進めます`);
     }
   }
-  // 掛け合いでは話者ごとに声が違う（speakers: 名前 → 声）。声ごとに一度だけ話者IDを調べる
-  const voiceOf = (name?: string) => (name && doc.meta.speakers[name]) || doc.meta.voice;
-  const voices = new Map<string, { id: number; name: string } | undefined>();
-  for (const v of new Set(doc.scenes.flatMap((s) => s.sentences.map((x) => voiceOf(x.speaker))))) {
-    voices.set(v, provider === "voicevox" ? await resolveVoicevoxSpeaker(opts.voicevoxUrl, v) : undefined);
+  const voices = new Map<string, Voice>();
+  for (const v of specs) {
+    if (provider !== "silent" && v.startsWith("exec:")) {
+      const name = v.slice(5);
+      voices.set(v, { kind: "exec", voice: await loadExternalVoice(name), name });
+      continue;
+    }
+    const spec = v.startsWith("exec:") ? { name: v } : parseVoiceSpec(v);
+    voices.set(v, provider === "voicevox" ? { kind: "voicevox", ...(await resolveVoicevoxSpeaker(opts.voicevoxUrl, spec.name)), spec } : { kind: "silent", spec });
   }
 
   await mkdir(join(outDir, "public/audio"), { recursive: true });
@@ -45,10 +74,13 @@ export async function synthesizeAll(doc: SceneDoc, outDir: string, opts: TtsOpti
   for (const scene of doc.scenes) {
     for (const [index, sentence] of scene.sentences.entries()) {
       const { text } = sentence;
-      const speaker = voices.get(voiceOf(sentence.speaker))?.id ?? 0;
+      const voice = voices.get(voiceOf(sentence.speaker))!;
+      const speed = doc.meta.speed * (voice.kind === "exec" ? 1 : (voice.spec.speed ?? 1));
       const speech = applyReadings(sentence.speech ?? text, doc.meta.readings);
+      const id = voice.kind === "voicevox" ? voice.id : voice.kind === "exec" ? `exec:${voice.name}:${JSON.stringify(voice.voice.command)}` : 0;
+      const tweak = voice.kind === "exec" ? undefined : [voice.spec.pitch, voice.spec.intonation, voice.spec.volume];
       const key = createHash("sha1")
-        .update(JSON.stringify([provider, speaker, doc.meta.speed, speech]))
+        .update(JSON.stringify([voice.kind === "exec" ? "exec" : provider, id, speed, speech, ...(tweak?.some((x) => x !== undefined) ? [tweak] : [])]))
         .digest("hex")
         .slice(0, 16);
       const file = `audio/${key}.wav`;
@@ -57,12 +89,15 @@ export async function synthesizeAll(doc: SceneDoc, outDir: string, opts: TtsOpti
       if (!existsSync(path) || !existsSync(lipPath)) {
         let wav: Buffer;
         let mouth: [number, number][];
-        if (provider === "voicevox") {
-          const r = await voicevoxSynthesize(opts.voicevoxUrl, speaker, speech, doc.meta.speed);
+        if (voice.kind === "voicevox") {
+          const r = await voicevoxSynthesize(opts.voicevoxUrl, voice.id, speech, speed, voice.spec);
           wav = r.wav;
           mouth = mouthFromQuery(r.query, wavSeconds(wav));
+        } else if (voice.kind === "exec") {
+          wav = await externalSynthesize(voice.voice, speech);
+          mouth = mouthFromWav(wav);
         } else {
-          const seconds = estimateSeconds(speech, doc.meta.speed);
+          const seconds = estimateSeconds(speech, speed);
           wav = silentWav(seconds);
           mouth = estimateMouth(seconds);
         }
@@ -80,8 +115,9 @@ export async function synthesizeAll(doc: SceneDoc, outDir: string, opts: TtsOpti
       });
     }
   }
-  log(`音声: ${sentences.length}文（新規 ${made} / キャッシュ ${sentences.length - made}）provider=${provider}`);
-  const timing: AudioTiming = { provider, voice: doc.meta.voice, credit: provider === "voicevox" ? [...new Set([...voices.values()].map((v) => `VOICEVOX:${v!.name}`))].join("、") : undefined, sentences };
+  log(`音声: ${sentences.length}文（新規 ${made} / キャッシュ ${sentences.length - made}）provider=${needsVoicevox ? provider : "exec"}`);
+  const credits = [...voices.values()].flatMap((v) => (v.kind === "voicevox" ? [`VOICEVOX:${v.name}`] : v.kind === "exec" && v.voice.credit ? [v.voice.credit] : []));
+  const timing: AudioTiming = { provider, voice: doc.meta.voice, credit: credits.length ? [...new Set(credits)].join("、") : undefined, sentences };
   await writeFile(join(outDir, "audio-timing.json"), JSON.stringify(timing, null, 2));
   return timing;
 }

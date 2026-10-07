@@ -72,6 +72,8 @@ export async function voicevoxSynthesize(
   speaker: number,
   text: string,
   speed: number,
+  /** 声の高さ（pitchScale, 0 が既定）・抑揚（intonationScale）・音量（volumeScale） */
+  tweak: { pitch?: number; intonation?: number; volume?: number } = {},
 ): Promise<{ wav: Buffer; query: AudioQuery }> {
   const q = await fetch(`${url}/audio_query?${new URLSearchParams({ text, speaker: String(speaker) })}`, {
     method: "POST",
@@ -79,6 +81,9 @@ export async function voicevoxSynthesize(
   if (!q.ok) throw new Error(`VOICEVOX audio_query 失敗 (${q.status}): ${await q.text()}`);
   const query = await q.json();
   query.speedScale = speed;
+  if (tweak.pitch !== undefined) query.pitchScale = tweak.pitch;
+  if (tweak.intonation !== undefined) query.intonationScale = tweak.intonation;
+  if (tweak.volume !== undefined) query.volumeScale = tweak.volume;
   // 文と文の間はタイムライン側で空けるので、前後の無音は短くする
   query.prePhonemeLength = 0.05;
   query.postPhonemeLength = 0.05;

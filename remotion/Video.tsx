@@ -17,6 +17,7 @@ import { Character, DuoCast } from "./Character";
 import { computeLayout, duoCharacters, type Layout } from "./layout";
 import { BiimScene } from "./biim/BiimScene";
 import { MotionScene } from "./motion/MotionScene";
+import { SkitScene } from "./skit/SkitScene";
 import { Sound } from "./Sound";
 import { Subtitle } from "./Subtitle";
 import { Bullets } from "./parts/Bullets";
@@ -62,6 +63,8 @@ export const Video: React.FC<VideoProps> = ({ timeline, withAudio = true }) => {
         <Sequence key={scene.id} from={scene.start} durationInFrames={scene.durationInFrames} name={`${scene.id} ${scene.heading}`}>
           {timeline.run ? (
             <BiimScene scene={scene} timeline={timeline} withAudio={withAudio} />
+          ) : timeline.skit ? (
+            <SkitScene scene={scene} timeline={timeline} withAudio={withAudio} />
           ) : timeline.motion ? (
             <MotionScene scene={scene} timeline={timeline} />
           ) : (
@@ -83,6 +86,7 @@ export const Video: React.FC<VideoProps> = ({ timeline, withAudio = true }) => {
       {withAudio && <Sound timeline={timeline} />}
       {layout.subtitle &&
         !timeline.run &&
+        !timeline.skit &&
         timeline.scenes.map((scene) => (
           <Sequence key={scene.id} from={scene.start} durationInFrames={scene.durationInFrames} layout="none">
             <Subtitle scene={scene} box={layout.subtitle!} theme={theme} cast={timeline.cast} />

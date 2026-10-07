@@ -30,7 +30,8 @@ description: ゲーム録画を gmm footage で下見して、gmm のゲーム�
 
 - フロントマター：`layout: biim`・`video:`・`runStart:`・`runEnd:`・`title:`（「ゲーム名 カテゴリ RTA 最終タイム」）・`category:`・`speakers:`・`characters:`
 - 画面は `biimFrame: overlay`（既定。左にゲーム、右の列にタイマーと小ネタ、下で二人が向かい合う）。
-  ほかに `stage`（上にゲーム・下に二人）、`classic`（おなじみの枠。枠の画像は `frameImage:`）、`simple`
+  ほかに `stage`（上にゲーム・下に二人）、`classic`（おなじみの枠。枠の画像は `frameImage:`）、`simple`、
+  `yukkuri`（ゆっくり実況。ゲームを全面に出し、左下と右下に小さな話者、話者の色の字幕。立ち絵は `manju-red` / `manju-witch` が似合う。見本は `examples/rta/yukkuri-run.md`）
 - 話者は `speakers:` に書いた順に左・右に立つ（例: めたんを左、ずんだもんを右）
 - `!cut`（ロード）と `!fast`（長い移動。x4 など）を書く
 - 区間を `## 名前 @時刻` で並べる。区間の名前は画面のステージ名に合わせる。区間は多すぎない（5〜15 程度）

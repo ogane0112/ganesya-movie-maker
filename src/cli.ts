@@ -14,6 +14,10 @@ import { overviewFootage } from "./biim/footage.js";
 import { formatTime, parseTime } from "./biim/parse.js";
 import { preview, renderVideo } from "./render.js";
 import { marpToScript } from "./marp.js";
+import { SKIT_SE } from "./skit/sfx.js";
+import { ACTS, CAPTION_STYLES, FXS } from "./skit/schema.js";
+import { fileURLToPath } from "node:url";
+import { copyFile, mkdir } from "node:fs/promises";
 
 // head などに渡して途中で閉じられても落ちないようにする
 process.stdout.on("error", (e: NodeJS.ErrnoException) => {
@@ -236,6 +240,49 @@ program
     for (const l of r.layers) console.log(`${l.radio ? "*" : " "} ${l.path}`);
     console.log(`\n${r.layers.length}レイヤーを ${join(dir, "layers")} に書き出しました（${r.width}×${r.height}）。`);
     console.log(`${join(dir, "character.json")} で、表情ごとに使うレイヤーを上のパスで指定してください（README の「立ち絵」参照）。`);
+  });
+
+/** gmm new の型 → 見本の台本（リポジトリ内）と、書き換えるべき所 */
+const TEMPLATES: Record<string, { file: string; about: string; next?: string }> = {
+  short: { file: "examples/skit/short.md", about: "縦長のショート動画（ネタ・あるある。太い字幕・派手な背景・上の帯）" },
+  meme: { file: "examples/skit/short.md", about: "short と同じ（ネタ動画は縦長から始めるのがおすすめ。横長にするなら format: wide）" },
+  yukkuri: { file: "examples/skit/yukkuri.md", about: "ゆっくり解説（まんじゅう型の2人・色付きの字幕）" },
+  anime: { file: "examples/skit/anime.md", about: "吹き出しの寸劇（出入り・動き・効果音）" },
+  "yukkuri-game": { file: "examples/rta/yukkuri-run.md", about: "ゲーム録画のゆっくり実況（layout: biim / biimFrame: yukkuri）", next: "video: を録画のパスに、runStart / runEnd を計測の開始・終了の時刻に書き換えてください（gmm footage で下見できます）" },
+  explainer: { file: "examples/dynamodb.md", about: "解説動画（部品で要点を出す）" },
+  motion: { file: "examples/motion/launch.md", about: "モーション動画（紹介・MV 風）" },
+};
+
+program
+  .command("new")
+  .description("見本の台本を元に、新しい台本を作る（short / yukkuri / anime / yukkuri-game / explainer / motion）")
+  .argument("[type]", "動画の型")
+  .argument("[file]", "作る台本のパス（例: scripts/my-short.md）")
+  .action(async (type?: string, file?: string) => {
+    if (!type || !TEMPLATES[type] || !file) {
+      if (type && !TEMPLATES[type]) console.error(`型「${type}」はありません`);
+      console.log("使い方: gmm new <型> <台本.md>\n");
+      for (const [k, t] of Object.entries(TEMPLATES)) console.log(`  ${k.padEnd(13)} ${t.about}`);
+      if (type || file) process.exitCode = 2;
+      return;
+    }
+    if (existsSync(file)) throw new Error(`${file} はもうあります（上書きしません）`);
+    const root = join(dirname(fileURLToPath(import.meta.url)), "..");
+    await mkdir(dirname(resolve(file)), { recursive: true });
+    await copyFile(join(root, TEMPLATES[type].file), file);
+    console.log(`${file} を作りました（元: ${TEMPLATES[type].file}）`);
+    console.log(TEMPLATES[type].next ?? "台詞と指示を書き換え、gmm check → gmm frames で確かめてから gmm render してください");
+  });
+
+const se = program.command("se").description("ネタ動画の組み込み効果音（コードで合成。権利表記は不要）");
+se.command("list")
+  .description("効果音の名前・音・使いどころを一覧する（台本では {se:名前} や !se 名前 と書く）")
+  .action(() => {
+    for (const [name, s] of Object.entries(SKIT_SE)) console.log(`${name.padEnd(9)} ${s.label.padEnd(6, "　")} ${s.use}`);
+    console.log(`\n手元の音声ファイルも使えます（!se sounds/foo.mp3 のように台本からの相対パス）`);
+    console.log(`動き（{act:…}）: ${ACTS.join(" ")}`);
+    console.log(`画面効果（{fx:…}）: ${FXS.join(" ")}`);
+    console.log(`テロップ（!caption … style=）: ${CAPTION_STYLES.join(" ")}`);
   });
 
 program.parseAsync().catch((e) => {

@@ -54,6 +54,10 @@ export async function mixAudio(t: Timeline, outDir: string, output: string): Pro
     const src = scene.se ?? se?.src;
     if (src) add(await load(src), scene.start, () => se?.volume ?? 0.5, frames - scene.start);
   }
+  // 場面の途中の効果音（ネタ動画の !se）
+  for (const scene of t.scenes) {
+    for (const snd of scene.sounds ?? []) add(await load(snd.src), scene.start + snd.from, () => snd.volume, frames - scene.start - snd.from);
+  }
   const spans = speechSpans(t);
   if (bgm) {
     // 曲の start 秒目から鳴らす（モーション動画で小節の頭にそろえる）。ループもそこから

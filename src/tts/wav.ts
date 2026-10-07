@@ -37,3 +37,47 @@ export function silentWav(seconds: number, sampleRate = 24000): Buffer {
   buf.writeUInt32LE(dataSize, 40);
   return buf;
 }
+
+/**
+ * 16bit PCM の WAV から「口を開けている区間」を音の大きさで推定する（音素がわからない外部の読み上げ用）。
+ * 20ms ごとの音量が、いちばん大きい所の 25% を超える区間を開とし、短い隙間はつなぐ
+ */
+export function mouthFromWav(buf: Buffer): [number, number][] {
+  let rate = 24000;
+  let channels = 1;
+  let offset = 12;
+  let data: Buffer | undefined;
+  while (offset + 8 <= buf.length) {
+    const id = buf.toString("ascii", offset, offset + 4);
+    const size = buf.readUInt32LE(offset + 4);
+    if (id === "fmt ") (channels = buf.readUInt16LE(offset + 10)), (rate = buf.readUInt32LE(offset + 12));
+    if (id === "data") data = buf.subarray(offset + 8, Math.min(buf.length, offset + 8 + size));
+    offset += 8 + size + (size % 2);
+  }
+  if (!data) return [];
+  const step = Math.round(rate * 0.02);
+  const samples = Math.floor(data.length / 2 / channels);
+  const rms: number[] = [];
+  for (let i = 0; i < samples; i += step) {
+    let sum = 0;
+    const n = Math.min(step, samples - i);
+    for (let j = 0; j < n; j++) {
+      const v = data.readInt16LE((i + j) * channels * 2) / 32768;
+      sum += v * v;
+    }
+    rms.push(Math.sqrt(sum / n));
+  }
+  const peak = Math.max(0, ...rms);
+  if (peak < 0.01) return [];
+  const spans: [number, number][] = [];
+  rms.forEach((v, i) => {
+    if (v < peak * 0.25) return;
+    const a = (i * step) / rate;
+    const b = ((i + 1) * step) / rate;
+    const last = spans[spans.length - 1];
+    if (last && a - last[1] < 0.045) last[1] = b;
+    else spans.push([a, b]);
+  });
+  const r = (x: number) => Math.round(x * 1000) / 1000;
+  return spans.filter(([a, b]) => b - a >= 0.04).map(([a, b]) => [r(a), r(b)]);
+}

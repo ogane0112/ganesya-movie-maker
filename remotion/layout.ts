@@ -26,7 +26,7 @@ export type Layout = {
 
 /** 掛け合い（解説動画で speakers: に2人以上・立ち絵あり）の左右の立ち絵。1人目が左、2人目が右 */
 export function duoCharacters(t: Timeline): { left: ResolvedCharacter; right: ResolvedCharacter } | undefined {
-  if (t.run) return undefined;
+  if (t.run || t.skit) return undefined;
   const chars = (t.cast ?? []).map((c) => c.character).filter((c): c is ResolvedCharacter => !!c);
   return chars.length >= 2 ? { left: chars[0], right: chars[1] } : undefined;
 }

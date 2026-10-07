@@ -14,6 +14,11 @@ import { buildBiimTimeline } from "./biim/timeline.js";
 import { loudnessOf } from "./bgm.js";
 import { loadCast, loadCharacter } from "./character.js";
 import { parseBiimScript } from "./biim/parse.js";
+import { parseSkitScript } from "./skit/parse.js";
+import { SKIT_SE, skitSePath, skitSeWav } from "./skit/sfx.js";
+import { buildSkitTimeline, defaultSeResolver, isMediaPath, isVideoPath, parseBgSpec } from "./skit/timeline.js";
+import type { Cue, ResolvedBg } from "./skit/schema.js";
+import { BUILTIN_FACES } from "../remotion/builtinCharacter.js";
 import { parseFrontMatter, parseScript } from "./parse.js";
 import { SceneDoc, type Timeline } from "./schema.js";
 import { toSrt } from "./subtitles.js";
@@ -47,6 +52,7 @@ export async function loadSceneDoc(input: string): Promise<SceneDoc> {
   }
   // layout: biim ならゲーム実況の台本として読む
   const { meta } = parseFrontMatter(src.replace(/\r\n/g, "\n").split("\n"));
+  if (meta.layout === "skit") return parseSkitScript(src);
   return meta.layout === "biim" ? parseBiimScript(src) : meta.layout === "motion" ? parseMotionScript(src) : parseScript(src);
 }
 
@@ -63,6 +69,7 @@ export async function prepare(input: string, opts: PipelineOptions): Promise<{ d
   });
   if (doc.meta.layout === "biim") return prepareBiim(doc, audio, input, outDir, opts);
   if (doc.meta.layout === "motion") return prepareMotion(doc, audio, input, outDir, opts);
+  if (doc.meta.layout === "skit") return prepareSkit(doc, audio, input, outDir, opts);
   // 掛け合い（speakers:）なら話者ごとの立ち絵、そうでなければ character: の1人
   const duo = Object.keys(doc.meta.speakers).length > 0;
   const cast = duo ? await loadCast(doc, input, outDir) : undefined;
@@ -193,4 +200,83 @@ async function prepareBiim(
   await writeFile(join(outDir, "credits.txt"), [...new Set(credits)].join("\n") + (credits.length ? "\n" : ""));
   opts.log(`タイムライン: ${timeline.scenes.length}区間 / ${(timeline.durationInFrames / timeline.meta.fps).toFixed(1)}秒（録画 ${probe.duration.toFixed(1)}秒）`);
   return { doc, timeline, outDir };
+}
+
+/** ネタ動画（layout: skit）：画像・背景・効果音を public/ に置き、話者ごとの立ち絵を読み、タイムラインを作る */
+async function prepareSkit(
+  doc: SceneDoc,
+  audio: Awaited<ReturnType<typeof synthesizeAll>>,
+  input: string,
+  outDir: string,
+  opts: PipelineOptions,
+): Promise<{ doc: SceneDoc; timeline: Timeline; outDir: string }> {
+  const cuesOf = (scene: SceneDoc["scenes"][number]): Cue[] => [...scene.sentences.flatMap((s) => s.cues ?? []), ...(scene.skit?.tail ?? [])];
+  const pub = (from: string, dir: string) => copyHashed(join(dirname(input), from), outDir, dir);
+  // 画像（!pic）
+  for (const scene of doc.scenes) {
+    for (const cue of cuesOf(scene)) {
+      if (cue.kind === "pic" && cue.src && !cue.src.startsWith("images/")) {
+        cue.src = await pub(cue.src, "images").catch((e: Error) => {
+          throw new Error(`${e.message}（シーン「${scene.heading}」の !pic）`);
+        });
+      }
+    }
+  }
+  // 背景（画像・動画）
+  const bgs: Record<string, ResolvedBg> = {};
+  for (const scene of doc.scenes) {
+    const spec = scene.skit?.bg;
+    if (!spec || bgs[spec]) continue;
+    if (!isMediaPath(spec)) {
+      bgs[spec] = parseBgSpec(spec);
+      continue;
+    }
+    const file = join(dirname(input), spec);
+    if (!existsSync(file)) throw new Error(`背景の${isVideoPath(spec) ? "動画" : "画像"}がありません: ${file}（シーン「${scene.heading}」）`);
+    bgs[spec] = isVideoPath(spec)
+      ? { kind: "video", src: await placeFootage(file, outDir), seconds: (await probeVideo(file)).duration }
+      : { kind: "image", src: await pub(spec, "images") };
+  }
+  // 効果音：組み込みのものは書き出し、ファイルはコピーする
+  await mkdir(join(outDir, "public/se/skit"), { recursive: true });
+  const seFiles: Record<string, string> = {};
+  for (const cue of doc.scenes.flatMap(cuesOf)) {
+    if (cue.kind !== "se") continue;
+    if (SKIT_SE[cue.se]) {
+      const path = join(outDir, "public", skitSePath(cue.se));
+      if (!existsSync(path)) await writeFile(path, skitSeWav(cue.se));
+    } else if (!seFiles[cue.se]) {
+      seFiles[cue.se] = await pub(cue.se, "se").catch(() => {
+        throw new Error(`効果音「${cue.se}」がありません（組み込みは ${Object.keys(SKIT_SE).join(" / ")}。ファイルなら台本からの相対パス）`);
+      });
+    }
+  }
+  const theme = await loadTheme(doc.meta.theme, input, outDir);
+  const cast = await loadCast(doc, input, outDir);
+  // !face の表情が立ち絵にあるか
+  for (const cue of doc.scenes.flatMap(cuesOf)) {
+    if (cue.kind !== "face") continue;
+    const ch = cast.find((c) => c.name === cue.who)?.character;
+    const faces: readonly string[] = ch ? (ch.kind === "builtin" ? BUILTIN_FACES : Object.keys(ch.expressions)) : [];
+    if (!faces.includes(cue.face)) throw new Error(`「${cue.who}」の立ち絵に表情「${cue.face}」はありません（使えるのは ${faces.join(", ")}）`);
+  }
+  const audioAssets = await prepareAudioAssets(doc.meta, input, outDir, { strict: opts.requireVoice, log: opts.log });
+  const timeline = buildSkitTimeline(doc, audio, theme, cast, { audio: audioAssets, resolveSe: defaultSeResolver(seFiles), bgs });
+  await writeFile(join(outDir, "timeline.json"), JSON.stringify(timeline, null, 2));
+  if (doc.meta.subtitles !== "none") await writeFile(join(outDir, "subtitles.srt"), toSrt(timeline));
+  const credits = [audio.credit, ...cast.map((c) => c.character?.credit), audioAssets.bgm?.credit].filter(Boolean);
+  await writeFile(join(outDir, "credits.txt"), [...new Set(credits)].join("\n") + (credits.length ? "\n" : ""));
+  const { width, height } = doc.meta;
+  opts.log(`タイムライン: ${timeline.scenes.length}場面 / ${(timeline.durationInFrames / doc.meta.fps).toFixed(1)}秒（${width}×${height}）`);
+  return { doc, timeline, outDir };
+}
+
+/** ファイルを public/<dir>/ に中身のハッシュの名前でコピーし、public からの相対パスを返す */
+async function copyHashed(from: string, outDir: string, dir: string): Promise<string> {
+  if (!existsSync(from)) throw new Error(`ファイルがありません: ${from}`);
+  const body = await readFile(from);
+  const name = `${dir}/${createHash("sha1").update(body).digest("hex").slice(0, 16)}${extname(from).toLowerCase()}`;
+  await mkdir(join(outDir, "public", dir), { recursive: true });
+  await copyFile(from, join(outDir, "public", name));
+  return name;
 }

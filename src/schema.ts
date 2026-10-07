@@ -3,6 +3,7 @@
 import { z } from "zod";
 import type { Theme } from "../remotion/theme";
 import { MotionElement, Transition, type MotionInfo, type ResolvedMotionElement } from "./motion/schema";
+import { Cue, SkitSceneDef, type SkitInfo, type SkitResolvedScene } from "./skit/schema";
 
 /** 「n番目のナレーション文が始まるときに出す」の n（1始まり）。省略時はシーン冒頭。 */
 const At = z.number().int().min(1);
@@ -110,6 +111,10 @@ export const Scene = z.object({
       at: z.number().optional(),
       /** ゲーム実況: この発言から右の欄に出す小ネタ（空文字で消す） */
       note: z.string().optional(),
+      /** ネタ動画: この台詞が始まるときに起きる指示（動き・画面効果・効果音・テロップなど） */
+      cues: z.array(Cue).optional(),
+      /** ネタ動画: この台詞の前に置く間（秒） */
+      wait: z.number().min(0).max(10).optional(),
     }),
   ),
   /** ゲーム実況: この区間（スプリット）が始まる録画の時刻（秒）。区間でないシーン（計測前）は省略 */
@@ -121,6 +126,8 @@ export const Scene = z.object({
   beats: z.number().positive().optional(),
   /** モーション動画: 場面の入り方 */
   transition: Transition.optional(),
+  /** ネタ動画: 背景・入り方・最後の台詞の後の指示 */
+  skit: SkitSceneDef.optional(),
 });
 
 export const Meta = z.object({
@@ -148,8 +155,16 @@ export const Meta = z.object({
   se: z.string().default("default"),
   /** 読み上げ速度（VOICEVOX の speedScale） */
   speed: z.number().default(1.0),
-  /** 画面構成。explainer: 解説動画 / biim: ゲーム実況（biim システム） */
-  layout: z.enum(["explainer", "biim", "motion"]).default("explainer"),
+  /** 画面構成。explainer: 解説動画 / biim: ゲーム実況（biim システム）/ motion: モーション動画 / skit: ネタ動画・ショート・ゆっくり・寸劇 */
+  layout: z.enum(["explainer", "biim", "motion", "skit"]).default("explainer"),
+  /** ネタ動画: 画面の形。wide: 横長 16:9 / short: 縦長 9:16（ショート動画）/ square: 正方形 */
+  format: z.enum(["wide", "short", "square"]).default("wide"),
+  /** ネタ動画: 見た目の型。yukkuri: ゆっくり（まんじゅう型・色付きの字幕）/ anime: 寸劇（吹き出し）/ meme: ネタ（太い字幕・派手な背景） */
+  style: z.enum(["yukkuri", "anime", "meme"]).default("meme"),
+  /** ネタ動画: 字幕の見た目。省略時は style で決まる（yukkuri → yukkuri / anime → bubble / meme → bold） */
+  subtitleStyle: z.enum(["yukkuri", "bubble", "bold", "box", "none"]).optional(),
+  /** ネタ動画: 画面の上に出し続ける帯の文字（ショート動画の題名など） */
+  banner: z.string().optional(),
   /** モーション動画: テンポ（1分あたりの拍数）。場面の長さと切り替わりは拍に合う */
   bpm: z.number().positive().default(120),
   /** 話者の名前 → VOICEVOX の声（掛け合い用。台本では「名前: 発言」と書く） */
@@ -166,9 +181,10 @@ export const Meta = z.object({
   /**
    * ゲーム実況: 画面の作り。
    * overlay: ゲームを全面に出し、左下と右下に話者が向かい合って乗る / stage: 上にゲーム、下で話者が向かい合う /
-   * classic: 定番の biim 枠（右上・右・下の箱と左下の円）/ simple: 箱を並べただけ
+   * classic: 定番の biim 枠（右上・右・下の箱と左下の円）/ simple: 箱を並べただけ /
+   * yukkuri: ゆっくり実況（ゲームを全面に出し、右下にまんじゅう型の話者、色付きの字幕）
    */
-  biimFrame: z.enum(["overlay", "stage", "classic", "simple"]).default("overlay"),
+  biimFrame: z.enum(["overlay", "stage", "classic", "simple", "yukkuri"]).default("overlay"),
   /** ゲーム実況: 枠の画像（1920×1080 の PNG。ゲームの所を透明にしたもの）。classic の配置のまま、線の代わりに重ねる */
   frameImage: z.string().optional(),
   /** ゲーム実況: ゲーム音の大きさ（実況がないとき）。実況中は自動で下げる */
@@ -297,6 +313,10 @@ export type ResolvedScene = {
   checkFrames?: number[];
   /** この場面の頭で鳴らす効果音（public/ からのパス）。なければ全体の se */
   se?: string;
+  /** 場面の途中で鳴らす効果音（from はシーン先頭から。src は public/ からのパス） */
+  sounds?: { from: number; src: string; volume: number }[];
+  /** ネタ動画の舞台（背景・立ち位置・動き・テロップ・画面効果） */
+  skit?: SkitResolvedScene;
   /** ゲーム実況: 右の欄の小ネタ。from（シーン先頭から）以降、次の指定まで出す。空文字は消す */
   notes?: { from: number; text: string }[];
   heading: string;
@@ -372,6 +392,8 @@ export type Timeline = {
   run?: RunInfo;
   /** モーション動画の拍の情報 */
   motion?: MotionInfo;
+  /** ネタ動画の画面の形・見た目 */
+  skit?: SkitInfo;
 };
 
 export type CastMember = { name: string; color: string; character?: ResolvedCharacter };
@@ -391,7 +413,7 @@ export type RunInfo = {
   footage: FootageSegment[];
   /** ゲーム音（実況がないときの大きさ） */
   gameVolume: number;
-  frame: "overlay" | "stage" | "classic" | "simple";
+  frame: "overlay" | "stage" | "classic" | "simple" | "yukkuri";
   /** 枠の画像（public/ からの相対パス） */
   frameImage?: string;
 };

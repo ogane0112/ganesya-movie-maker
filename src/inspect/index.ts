@@ -11,7 +11,7 @@ import { chromium, type Page } from "playwright-core";
 import { findBrowser } from "../browser.js";
 import { bundleAliases, nodeModulesDir } from "../motion/custom.js";
 import type { ResolvedScene, Timeline } from "../schema.js";
-import { checkBiimScene, checkFaces, checkLayout, checkMotionScene, checkScene, checkSubtitle, checkTerms, checkTextOverlap, type Issue } from "./rules.js";
+import { checkBiimScene, checkFaces, checkLayout, checkMotionScene, checkScene, checkSkitScene, checkSubtitle, checkTerms, checkTextOverlap, type Issue } from "./rules.js";
 
 const here = dirname(fileURLToPath(import.meta.url));
 
@@ -142,6 +142,10 @@ export async function runChecks(timeline: Timeline, outDir: string): Promise<Iss
         issues.push(...(await checkMotionFrames(session, scene, timeline)));
         continue;
       }
+      if (timeline.skit) {
+        issues.push(...(await checkSkitFrames(session, scene, timeline)));
+        continue;
+      }
       const biim = !!timeline.run;
       issues.push(...(biim ? checkBiimScene(scene, timeline, scene === timeline.scenes.at(-1)) : checkScene(scene, timeline)));
       await session.show(finalFrame(scene));
@@ -194,6 +198,43 @@ async function checkMotionFrames(session: InspectSession, scene: ResolvedScene, 
   return issues;
 }
 
+/** ネタ動画のシーンで、出来事が落ち着くフレーム（各台詞の頭・テロップ・画像・スタンプが出た少し後と、最後） */
+export function skitCheckFrames(scene: ResolvedScene, fps: number): number[] {
+  const settle = Math.round(fps * 0.4);
+  const sk = scene.skit!;
+  const fs = [...scene.sentences.map((s) => s.from), ...sk.captions.map((c) => c.from), ...sk.pics.map((p) => p.from), ...sk.stamps.map((s) => s.from)];
+  return [...new Set([...fs.map((f) => Math.min(scene.durationInFrames - 1, f + settle)), scene.durationInFrames - 1])].sort((a, b) => a - b);
+}
+
+/**
+ * ネタ動画：台詞・テロップが出て落ち着いたフレームごとに測る。
+ * はみ出し（文字は画面の端から）、テロップ・画像・帯どうしの重なり、字幕と それらの重なり・行数を見る。
+ * 立ち絵・スタンプ・背景は重ねて使うものなので、重なりの対象から外す
+ */
+async function checkSkitFrames(session: InspectSession, scene: ResolvedScene, timeline: Timeline): Promise<Issue[]> {
+  const label = `${scene.id}「${scene.heading}」`;
+  const issues: Issue[] = [...checkSkitScene(scene, timeline)];
+  const seen = new Set<string>();
+  const push = (list: Issue[]) => {
+    for (const i of list) {
+      const key = `${i.rule}:${i.message}`;
+      if (!seen.has(key)) seen.add(key), issues.push(i);
+    }
+  };
+  const loose = new Set(["character", "stamp", "backdrop"]);
+  for (const f of skitCheckFrames(scene, timeline.meta.fps)) {
+    await session.show(scene.start + f);
+    const m = await session.page.evaluate(() => window.gmm.measure());
+    const fixed = { ...m, elements: m.elements.filter((e) => !loose.has(e.kind)) };
+    const at = `${label}（${(f / timeline.meta.fps).toFixed(1)}秒）`;
+    // 上の帯は画面の端まで使うので、はみ出しの対象から外す（中の文字は見る）
+    push(checkLayout({ ...fixed, elements: fixed.elements.filter((e) => e.kind !== "banner") }, at, { texts: true }));
+    const sub = await session.page.evaluate(() => window.gmm.measureSubtitle());
+    if (sub) push(checkSubtitle(sub, fixed.elements, scene.id, at));
+  }
+  return issues;
+}
+
 export type FrameShot = { sceneId: string; frame: number; file: string; label: string };
 
 /**
@@ -214,7 +255,12 @@ export async function captureFrames(
     for (const scene of timeline.scenes) {
       if (opts.scenes && !opts.scenes.includes(scene.id)) continue;
       const targets: { frame: number; suffix: string; label: string }[] = [];
-      if (opts.mode === "steps" && timeline.motion) {
+      if (opts.mode === "steps" && timeline.skit) {
+        // ネタ動画：台詞・テロップが出て落ち着いたところを順に撮る
+        skitCheckFrames(scene, timeline.meta.fps)
+          .slice(0, -1)
+          .forEach((f, i) => targets.push({ frame: scene.start + f, suffix: `-${i + 1}`, label: `${(f / timeline.meta.fps).toFixed(1)}秒` }));
+      } else if (opts.mode === "steps" && timeline.motion) {
         // モーション動画：部品が出て落ち着いたところを順に撮る
         const fpb = timeline.motion.framesPerBeat;
         (scene.checkFrames ?? []).slice(0, -1).forEach((f, i) =>
@@ -234,25 +280,28 @@ export async function captureFrames(
         shots.push({ sceneId: scene.id, frame: t.frame, file: relative(outDir, file), label: `${scene.id}「${scene.heading}」${t.label}` });
       }
     }
-    if (!opts.scenes) await writeOverview(session, shots.filter((s) => !/-\d+\.png$/.test(s.file)), outDir);
+    if (!opts.scenes) await writeOverview(session, shots.filter((s) => !/-\d+\.png$/.test(s.file)), outDir, timeline.meta.width / timeline.meta.height);
   } finally {
     await session.close();
   }
   return shots;
 }
 
-async function writeOverview({ page, baseUrl }: InspectSession, shots: FrameShot[], outDir: string) {
-  const cols = Math.min(3, shots.length);
+async function writeOverview({ page, baseUrl }: InspectSession, shots: FrameShot[], outDir: string, aspect = 16 / 9) {
+  // 縦長の動画（ショート）は細いコマを多めに並べる
+  const cellW = aspect < 1 ? 300 : 640;
+  const cellH = Math.round(cellW / aspect);
+  const cols = Math.min(aspect < 1 ? 6 : 3, shots.length);
   const cells = shots
     .map(
       (s) =>
         `<figure><img src="${baseUrl}/${s.file}"><figcaption>${s.label.replace(/</g, "&lt;")}</figcaption></figure>`,
     )
     .join("");
-  const width = cols * 640 + (cols + 1) * 16;
+  const width = cols * cellW + (cols + 1) * 16;
   await page.setViewportSize({ width, height: 400 });
   await page.setContent(
-    `<style>body{margin:0;padding:16px;background:#333;font:20px sans-serif;color:#fff;display:grid;grid-template-columns:repeat(${cols},640px);gap:16px}figure{margin:0}img{width:640px;height:360px;display:block}figcaption{padding:6px 0}</style>${cells}`,
+    `<style>body{margin:0;padding:16px;background:#333;font:20px sans-serif;color:#fff;display:grid;grid-template-columns:repeat(${cols},${cellW}px);gap:16px}figure{margin:0}img{width:${cellW}px;height:${cellH}px;display:block}figcaption{padding:6px 0}</style>${cells}`,
   );
   // 画像がすべて読み込まれるまで待つ（decode() は大量の画像で失敗することがあるので load を待つ）
   await page.waitForFunction(() => [...document.images].every((i) => i.complete && i.naturalWidth > 0), null, { timeout: 30000 });
