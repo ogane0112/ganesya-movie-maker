@@ -30,7 +30,17 @@ initializeCanvas(
 const clean = (name: string) => name.replace(/^[*!]/, "");
 
 export async function importPsd(psdPath: string, outDir: string): Promise<LayersFile> {
-  const psd = readPsd(await readFile(psdPath), { useImageData: true, skipCompositeImageData: true, skipThumbnail: true });
+  const body = await readFile(psdPath);
+  // ag-psd は RGB・グレースケールしか読めない。CMYK などは、何をすればよいかを伝える
+  const mode = body.length >= 26 && body.toString("ascii", 0, 4) === "8BPS" ? body.readUInt16BE(24) : undefined;
+  const MODES: Record<number, string> = { 2: "インデックスカラー", 4: "CMYK", 7: "マルチチャンネル", 8: "ダブルトーン", 9: "Lab" };
+  if (mode !== undefined && MODES[mode]) {
+    throw new Error(
+      `この PSD は${MODES[mode]}です。画像編集ソフトで RGB に変換して保存し直してから取り込んでください` +
+        `（レイヤーが1枚だけの絵なら、透過 PNG に書き出して character.json に PNG の名前を並べても使えます。README の「character.json」）`,
+    );
+  }
+  const psd = readPsd(body, { useImageData: true, skipCompositeImageData: true, skipThumbnail: true });
   const { width, height } = psd;
   await mkdir(join(outDir, "layers"), { recursive: true });
 
@@ -58,6 +68,9 @@ export async function importPsd(psdPath: string, outDir: string): Promise<Layers
     }
   };
   await walk(psd.children, "", 1);
+  if (!layers.length) {
+    throw new Error("この PSD にはレイヤーがありません（1枚の絵です）。透過 PNG に書き出して、character.json に PNG の名前を並べれば使えます（README の「character.json」）");
+  }
 
   const result: LayersFile = { width, height, layers };
   await writeFile(join(outDir, "layers.json"), JSON.stringify(result, null, 2));
