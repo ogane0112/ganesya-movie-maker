@@ -143,7 +143,15 @@ const Figure: React.FC<{ member: CastMember; index: number; scene: ResolvedScene
   const mouthOpen = mine.some((s) => s.mouth.some(([a, b]) => frame >= a && frame < b));
   const manju = ch.kind === "builtin" && isManju(ch.variant);
   // 話している間は揺れる（まんじゅう型は弾む）
-  const bob = speaking ? (manju ? -Math.abs(Math.sin((frame / fps) * Math.PI * 2.4)) * 10 : Math.sin((frame / fps) * Math.PI * 1.6) * 4) : 0;
+  // 曲では拍に合わせて弾む（踊り）。話している間は揺れる（まんじゅう型は弾む）
+  const beat = timeline.song ? ((scene.start + frame) / fps) * (timeline.song.bpm / 60) : 0;
+  const bob = timeline.song
+    ? -Math.abs(Math.sin(Math.PI * beat)) * size.height * 0.025
+    : speaking
+      ? manju
+        ? -Math.abs(Math.sin((frame / fps) * Math.PI * 2.4)) * 10
+        : Math.sin((frame / fps) * Math.PI * 1.6) * 4
+      : 0;
   // 顔が画面の内側を向くよう、逆向きの絵は左右反転する
   const facing = ch.kind === "layers" ? ch.facing : undefined;
   const left = st.x < L.W / 2;
@@ -551,10 +559,37 @@ const Line: React.FC<{ scene: ResolvedScene; timeline: Timeline; frame: number; 
         <div data-gmm-subtitle-text style={{ fontSize: sub.fontSize, lineHeight: `${sub.lineHeight}px`, textAlign: "center", ...textStyle }}>
           {s.text}
         </div>
+        {/* 曲の歌詞：歌ったところまで色を付ける（カラオケ） */}
+        {s.karaoke && (
+          <div
+            aria-hidden
+            style={{
+              position: "absolute",
+              inset: 0,
+              fontSize: sub.fontSize,
+              lineHeight: `${sub.lineHeight}px`,
+              textAlign: "center",
+              ...textStyle,
+              color: timeline.theme.accent2 ?? timeline.theme.accent,
+              clipPath: `inset(0 ${100 - 100 * karaokeProgress(s.karaoke, frame)}% 0 0)`,
+            }}
+          >
+            {s.text}
+          </div>
+        )}
       </div>
     </div>
   );
 };
+
+/** カラオケの進み具合（0〜1）。音符の頭の並び（最後は終わり）から、いまどこまで歌ったか */
+export function karaokeProgress(marks: number[], frame: number): number {
+  const n = marks.length - 1;
+  if (n <= 0 || frame <= marks[0]) return 0;
+  if (frame >= marks[n]) return 1;
+  const i = marks.findLastIndex((m) => m <= frame);
+  return (i + (frame - marks[i]) / Math.max(1, marks[i + 1] - marks[i])) / n;
+}
 
 // ---- 場面の入り方 ----
 

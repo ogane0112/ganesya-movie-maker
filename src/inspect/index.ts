@@ -134,7 +134,12 @@ export async function openInspector(timeline: Timeline, outDir: string): Promise
 const finalFrame = (s: ResolvedScene) => s.start + s.durationInFrames - 1;
 
 export async function runChecks(timeline: Timeline, outDir: string): Promise<Issue[]> {
-  const issues: Issue[] = [...checkTerms(timeline), ...checkFaces(timeline)];
+  const issues: Issue[] = [
+    ...checkTerms(timeline),
+    ...checkFaces(timeline),
+    // 曲：歌うには高すぎる・低すぎる音など
+    ...(timeline.song?.warnings ?? []).map((message): Issue => ({ severity: "warn", sceneId: timeline.scenes[0]?.id ?? "", rule: "song-range", message, hint: "メロディを歌いやすい高さに直すか、transpose: で全体をずらしてください" })),
+  ];
   const session = await openInspector(timeline, outDir);
   try {
     for (const scene of timeline.scenes) {

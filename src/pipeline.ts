@@ -15,6 +15,10 @@ import { loudnessOf } from "./bgm.js";
 import { loadCast, loadCharacter } from "./character.js";
 import { parseBiimScript } from "./biim/parse.js";
 import { parseSkitScript } from "./skit/parse.js";
+import { parseSongScript } from "./music/parse.js";
+import { buildSongAudio, buildSongTimeline } from "./music/song.js";
+import { resolveSinger } from "./music/sing.js";
+import { voicevoxAvailable } from "./tts/voicevox.js";
 import { SKIT_SE, skitSePath, skitSeWav } from "./skit/sfx.js";
 import { buildSkitTimeline, defaultSeResolver, isMediaPath, isVideoPath, parseBgSpec } from "./skit/timeline.js";
 import type { Cue, ResolvedBg } from "./skit/schema.js";
@@ -53,6 +57,7 @@ export async function loadSceneDoc(input: string): Promise<SceneDoc> {
   // layout: biim ならゲーム実況の台本として読む
   const { meta } = parseFrontMatter(src.replace(/\r\n/g, "\n").split("\n"));
   if (meta.layout === "skit") return parseSkitScript(src);
+  if (meta.layout === "song") return parseSongScript(src);
   return meta.layout === "biim" ? parseBiimScript(src) : meta.layout === "motion" ? parseMotionScript(src) : parseScript(src);
 }
 
@@ -61,6 +66,8 @@ export async function prepare(input: string, opts: PipelineOptions): Promise<{ d
   await mkdir(outDir, { recursive: true });
   const doc = await copyImages(await loadSceneDoc(input), input, outDir);
   await writeFile(join(outDir, "scenes.json"), JSON.stringify(doc, null, 2));
+  // 曲は話す声を作らない（歌声は曲と一緒に作る）
+  if (doc.meta.layout === "song") return prepareSong(doc, input, outDir, opts);
   const audio = await synthesizeAll(doc, outDir, {
     provider: opts.tts,
     voicevoxUrl: opts.voicevoxUrl,
@@ -222,21 +229,7 @@ async function prepareSkit(
       }
     }
   }
-  // 背景（画像・動画）
-  const bgs: Record<string, ResolvedBg> = {};
-  for (const scene of doc.scenes) {
-    const spec = scene.skit?.bg;
-    if (!spec || bgs[spec]) continue;
-    if (!isMediaPath(spec)) {
-      bgs[spec] = parseBgSpec(spec);
-      continue;
-    }
-    const file = join(dirname(input), spec);
-    if (!existsSync(file)) throw new Error(`背景の${isVideoPath(spec) ? "動画" : "画像"}がありません: ${file}（シーン「${scene.heading}」）`);
-    bgs[spec] = isVideoPath(spec)
-      ? { kind: "video", src: await placeFootage(file, outDir), seconds: (await probeVideo(file)).duration }
-      : { kind: "image", src: await pub(spec, "images") };
-  }
+  const bgs = await prepareBackgrounds(doc, input, outDir);
   // 効果音：組み込みのものは書き出し、ファイルはコピーする
   await mkdir(join(outDir, "public/se/skit"), { recursive: true });
   const seFiles: Record<string, string> = {};
@@ -279,4 +272,45 @@ async function copyHashed(from: string, outDir: string, dir: string): Promise<st
   await mkdir(join(outDir, "public", dir), { recursive: true });
   await copyFile(from, join(outDir, "public", name));
   return name;
+}
+
+/** 背景（## 見出し bg=）の画像・動画を public/ に置き、色・模様と合わせて解決する */
+async function prepareBackgrounds(doc: SceneDoc, input: string, outDir: string): Promise<Record<string, ResolvedBg>> {
+  const bgs: Record<string, ResolvedBg> = {};
+  for (const scene of doc.scenes) {
+    const spec = scene.skit?.bg;
+    if (!spec || bgs[spec]) continue;
+    if (!isMediaPath(spec)) {
+      bgs[spec] = parseBgSpec(spec);
+      continue;
+    }
+    const file = join(dirname(input), spec);
+    if (!existsSync(file)) throw new Error(`背景の${isVideoPath(spec) ? "動画" : "画像"}がありません: ${file}（シーン「${scene.heading}」）`);
+    bgs[spec] = isVideoPath(spec)
+      ? { kind: "video", src: await placeFootage(file, outDir), seconds: (await probeVideo(file)).duration }
+      : { kind: "image", src: await copyHashed(file, outDir, "images") };
+  }
+  return bgs;
+}
+
+/** 曲（layout: song）：伴奏を合成し、VOICEVOX で歌わせて 1 本の WAV にし、歌詞のカラオケと口パクのタイムラインを作る */
+async function prepareSong(doc: SceneDoc, input: string, outDir: string, opts: PipelineOptions): Promise<{ doc: SceneDoc; timeline: Timeline; outDir: string }> {
+  let singer: Awaited<ReturnType<typeof resolveSinger>> | undefined;
+  if (doc.meta.singer !== "none" && opts.tts !== "silent") {
+    if (await voicevoxAvailable(opts.voicevoxUrl)) singer = await resolveSinger(opts.voicevoxUrl, doc.meta.singer);
+    else if (opts.requireVoice || opts.tts === "voicevox") throw new Error(`VOICEVOX（${opts.voicevoxUrl}）に接続できません。歌わせるにはエンジンを起動してください（歌なしで書き出すなら --tts silent）`);
+    else opts.log(`VOICEVOX（${opts.voicevoxUrl}）に接続できないため、歌の代わりに楽器でメロディを弾きます`);
+  }
+  const song = await buildSongAudio(doc, outDir, { voicevoxUrl: opts.voicevoxUrl, singer, log: opts.log });
+  await copyFile(join(outDir, "public", song.mix), join(outDir, "song.wav"));
+  const theme = await loadTheme(doc.meta.theme, input, outDir);
+  const cast = await loadCast(doc, input, outDir);
+  const timeline = buildSongTimeline(doc, theme, cast, song, await prepareBackgrounds(doc, input, outDir));
+  await writeFile(join(outDir, "timeline.json"), JSON.stringify(timeline, null, 2));
+  await writeFile(join(outDir, "subtitles.srt"), toSrt(timeline));
+  const credits = [song.credit, ...cast.map((c) => c.character?.credit)].filter(Boolean);
+  await writeFile(join(outDir, "credits.txt"), [...new Set(credits)].join("\n") + (credits.length ? "\n" : ""));
+  for (const w of song.warnings) opts.log(`注意: ${w}`);
+  opts.log(`曲: ${doc.scenes.length}セクション / ${(timeline.durationInFrames / doc.meta.fps).toFixed(1)}秒（${doc.meta.bpm} BPM・${doc.meta.music}${singer ? `・歌 ${song.credit}` : "・歌なし"}）→ ${join(outDir, "song.wav")}`);
+  return { doc, timeline, outDir };
 }

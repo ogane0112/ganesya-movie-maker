@@ -249,13 +249,14 @@ const TEMPLATES: Record<string, { file: string; about: string; next?: string }> 
   yukkuri: { file: "examples/skit/yukkuri.md", about: "ゆっくり解説（まんじゅう型の2人・色付きの字幕）" },
   anime: { file: "examples/skit/anime.md", about: "吹き出しの寸劇（出入り・動き・効果音）" },
   "yukkuri-game": { file: "examples/rta/yukkuri-run.md", about: "ゲーム録画のゆっくり実況（layout: biim / biimFrame: yukkuri）", next: "video: を録画のパスに、runStart / runEnd を計測の開始・終了の時刻に書き換えてください（gmm footage で下見できます）" },
+  song: { file: "examples/song/zunda-mochi.md", about: "曲（作曲・伴奏の合成・ずんだもんなどが VOICEVOX で歌う。歌詞カラオケの動画も）" },
   explainer: { file: "examples/dynamodb.md", about: "解説動画（部品で要点を出す）" },
   motion: { file: "examples/motion/launch.md", about: "モーション動画（紹介・MV 風）" },
 };
 
 program
   .command("new")
-  .description("見本の台本を元に、新しい台本を作る（short / yukkuri / anime / yukkuri-game / explainer / motion）")
+  .description("見本の台本を元に、新しい台本を作る（short / yukkuri / anime / yukkuri-game / song / explainer / motion）")
   .argument("[type]", "動画の型")
   .argument("[file]", "作る台本のパス（例: scripts/my-short.md）")
   .action(async (type?: string, file?: string) => {
@@ -273,6 +274,14 @@ program
     console.log(`${file} を作りました（元: ${TEMPLATES[type].file}）`);
     console.log(TEMPLATES[type].next ?? "台詞と指示を書き換え、gmm check → gmm frames で確かめてから gmm render してください");
   });
+
+withCommon(program.command("song").description("曲の台本（layout: song）から、伴奏と歌（VOICEVOX の歌唱）を合わせた song.wav と歌詞の subtitles.srt を作る（動画は gmm render）")).action(
+  async (input, o) => {
+    const { doc, outDir } = await prepare(input, pipelineOpts(o));
+    if (doc.meta.layout !== "song") throw new Error("gmm song は曲の台本（layout: song）に使います");
+    console.log(join(outDir, "song.wav"));
+  },
+);
 
 const se = program.command("se").description("ネタ動画の組み込み効果音（コードで合成。権利表記は不要）");
 se.command("list")

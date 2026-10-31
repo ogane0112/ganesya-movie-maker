@@ -2,7 +2,8 @@
 
 台本（Markdown）を書けば、解説動画（16:9・日本語ナレーション付き）や、ゲーム実況・RTA 動画（biim システム）、
 モーション動画（紹介・MV 風・データの物語・3D。曲もコードで合成）、
-ネタ動画（縦長ショート・ゆっくり解説・アニメ寸劇。テロップ・効果音・キャラの動き）を作るCLI。
+ネタ動画（縦長ショート・ゆっくり解説・アニメ寸劇。テロップ・効果音・キャラの動き）、
+曲（作曲・伴奏の合成・VOICEVOX の歌唱でずんだもんたちが歌う。歌詞カラオケの動画）を作るCLI。
 要件は [docs/requirements.md](docs/requirements.md)。
 
 LLM が苦手な2点をツール側で肩代わりする：
@@ -45,6 +46,7 @@ npm install
 | `gmm terms <台本>` | 専門用語の候補（カタカナ語・英字の語）を回数・初出・glossary の有無つきで一覧する |
 | `gmm character import <psd> <dir>` | 立ち絵 PSD をレイヤーごとの PNG に分解する（下記「立ち絵」） |
 | `gmm new <型> <台本>` | 見本から新しい台本を作る（short / yukkuri / anime / yukkuri-game / explainer / motion） |
+| `gmm song <台本>` | 曲の台本（`layout: song`）から伴奏と歌を合わせた `song.wav` と歌詞の `subtitles.srt` を作る |
 | `gmm se list` | ネタ動画の効果音（コードで合成）・動き・画面効果・テロップの一覧 |
 
 共通オプション: `--tts auto|voicevox|silent`、`--voicevox-url`、`-o <dir>`。
@@ -175,6 +177,7 @@ characters:
 | `gmm-rta-script` | 録画の下見と、時刻付きの実況台本 |
 | `gmm-motion-script` | モーション動画の構成と台本（部品／場面のコード） |
 | `gmm-skit-script` | ネタ動画（ショート・ゆっくり・寸劇）の構成と台本 |
+| `gmm-song-script` | 曲（作詞・作曲・伴奏・歌唱）の台本 |
 | `gmm-terms` | 専門用語の洗い出しと説明 |
 | `gmm-bgm` | BGM 選び |
 | `gmm-review` | 検査とキーフレームの目視で直す |
@@ -370,6 +373,33 @@ characters:
 - ゲーム録画のゆっくり実況は `layout: biim` の `biimFrame: yukkuri`（`examples/rta/yukkuri-run.md`）
 - 見本：`examples/skit/`（short・yukkuri・anime）。`gmm new short my.md` で見本から始められる
 
+## 曲を作る・歌わせる
+
+フロントマターに `layout: song` と書くと、コード進行・メロディ・歌詞から曲を作る（[docs/song.md](docs/song.md)）。
+伴奏はコードで合成し（`music: pop / rock / ballad / chiptune / edm`）、歌は VOICEVOX の歌唱機能で歌う（`singer: zundamon` など）。
+
+```markdown
+---
+title: ずんだもちのうた
+layout: song
+bpm: 128
+music: pop
+singer: zundamon
+character: builtin
+---
+
+## イントロ chords="C G Am F"
+
+## サビ chords="F G Em Am | F G C C"
+melody: C5 C5 A4 - C5 C5 A4 - | G4 G4 A4 G4 E4 - - - |   ← 1つが8分音符。- で伸ばす、. で休む
+lyrics: ずんだずんだ ずんだもち                          ← 音符1つに1音（ひらがな）
+text: ずんだ ずんだ ずんだ餅                             ← 画面に出す歌詞
+```
+
+- `gmm song` で曲だけ（`song.wav`）、`gmm render` で歌詞がカラオケで色付く動画（歌う人は拍に合わせて弾み、口は歌に合わせて動く）
+- `singer: none` で歌なしの曲（楽器がメロディを弾く）。ほかの動画の BGM にも使える
+- 見本：`examples/song/zunda-mochi.md`（`gmm new song my-song.md`）
+
 ## テーマ
 
 `theme:` に組み込みテーマ名（`wakaba` / `dark` / `night` / `pop`）か、テーマ JSON のパスを書く。JSON は変えたい項目だけ書けばよい。
@@ -426,6 +456,7 @@ src/
   psd.ts             F14 PSD → レイヤー PNG
   biim/              F18/F19 ゲーム実況：台本パーサ・タイムライン（カット・倍速・待ち行列）・録画の下見
   skit/              ネタ動画：台本パーサ（指示の行・文頭の印）・タイムライン（舞台の状態の引き継ぎ）・効果音の合成
+  music/             曲：楽譜（音名・コード・歌詞の音）・台本パーサ・伴奏の合成・VOICEVOX の歌唱・曲のタイムライン
 remotion/
   Video.tsx          全体の構成（シーン → 見出し + 部品）
   parts/             F4 部品集（Title / Bullets / Code / Text / Diagram / Math / Image）と組み込みキャラ

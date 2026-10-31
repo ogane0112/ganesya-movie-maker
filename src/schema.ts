@@ -3,6 +3,7 @@
 import { z } from "zod";
 import type { Theme } from "../remotion/theme";
 import { MotionElement, Transition, type MotionInfo, type ResolvedMotionElement } from "./motion/schema";
+import { Arrangement, SongSection } from "./music/schema";
 import { Cue, SkitSceneDef, type SkitInfo, type SkitResolvedScene } from "./skit/schema";
 
 /** 「n番目のナレーション文が始まるときに出す」の n（1始まり）。省略時はシーン冒頭。 */
@@ -128,6 +129,8 @@ export const Scene = z.object({
   transition: Transition.optional(),
   /** ネタ動画: 背景・入り方・最後の台詞の後の指示 */
   skit: SkitSceneDef.optional(),
+  /** 曲: セクションのコード・長さ・メロディ（文はフレーズで、歌詞の表示に使う） */
+  song: SongSection.optional(),
 });
 
 export const Meta = z.object({
@@ -156,7 +159,13 @@ export const Meta = z.object({
   /** 読み上げ速度（VOICEVOX の speedScale） */
   speed: z.number().default(1.0),
   /** 画面構成。explainer: 解説動画 / biim: ゲーム実況（biim システム）/ motion: モーション動画 / skit: ネタ動画・ショート・ゆっくり・寸劇 */
-  layout: z.enum(["explainer", "biim", "motion", "skit"]).default("explainer"),
+  layout: z.enum(["explainer", "biim", "motion", "skit", "song"]).default("explainer"),
+  /** 曲: 伴奏の型（pop / rock / ballad / chiptune / edm） */
+  music: Arrangement.default("pop"),
+  /** 曲: 歌う声（zundamon / metan / … / "zundamon:あまあま" / 歌唱スタイルの ID）。none なら楽器がメロディを弾く */
+  singer: z.string().default("zundamon"),
+  /** 曲: 全体の音の高さを半音でずらす（歌いやすい高さに合わせる） */
+  transpose: z.number().int().min(-12).max(12).default(0),
   /** ネタ動画: 画面の形。wide: 横長 16:9 / short: 縦長 9:16（ショート動画）/ square: 正方形 */
   format: z.enum(["wide", "short", "square"]).default("wide"),
   /** ネタ動画: 見た目の型。yukkuri: ゆっくり（まんじゅう型・色付きの字幕）/ anime: 寸劇（吹き出し）/ meme: ネタ（太い字幕・派手な背景） */
@@ -295,6 +304,8 @@ export type ResolvedSentence = {
   carry?: boolean;
   /** ゲーム実況: 台本で指定した開始（シーン先頭からのフレーム）。実際の開始との差が「遅れ」 */
   anchor?: number;
+  /** 曲: 歌詞の各音符の始まりと最後の終わり（シーン先頭からのフレーム）。カラオケの色付けに使う */
+  karaoke?: number[];
 };
 
 /** ゲーム実況: 出力の [from, from+durationInFrames) に、録画の videoFrom 秒から rate 倍速で流す */
@@ -394,6 +405,8 @@ export type Timeline = {
   motion?: MotionInfo;
   /** ネタ動画の画面の形・見た目 */
   skit?: SkitInfo;
+  /** 曲：テンポ（踊りの拍に使う）と、曲の検査で見つかったこと */
+  song?: { bpm: number; warnings: string[] };
 };
 
 export type CastMember = { name: string; color: string; character?: ResolvedCharacter };

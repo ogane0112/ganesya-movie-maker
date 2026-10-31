@@ -19,6 +19,8 @@ curl -s localhost:50021/version
 
 - 返事がなければ起動する：`docker run -d --rm -p 50021:50021 voicevox/voicevox_engine:cpu-latest`
   （docker が止まっていれば `dockerd` から。起動には 1 分ほどかかるので、`/version` が返るまで待つ）
+- ポートの割り当てで起動できない環境では `docker run -d --rm --network host voicevox/voicevox_engine:cpu-latest` でもよい
+- 曲（`layout: song`）で歌わせるには、歌唱に対応したエンジン（0.16 以降。`curl -s localhost:50021/singers` に `"type": "sing"` の声がある）が要る
 - 検査（`check`）とキーフレーム（`frames`）は `--tts silent` の仮音声でも動く。**書き出し（`render`）には VOICEVOX が必須**
 - 環境によっては、ターンをまたぐと docker が止まる。書き出しのときは、起動の確認と `render` を同じコマンドで続けて実行する
 

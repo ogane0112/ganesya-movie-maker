@@ -26,6 +26,9 @@
 ネタ動画（ショート・ゆっくり・寸劇。`layout: skit`）では、台詞の間に `!caption` `!se` `!wait` などの指示の行を、文頭に `{act:jump}` `{fx:zoom}` `{se:don}` を書く（`docs/skit.md`、スキル `gmm-skit-script`）。
 `gmm new <型> <台本>` で見本から始め、`gmm se list` で効果音・動きの名前を見る。効果音は 1 台詞に 1 つまで。
 
+曲（`layout: song`）は、コード進行・メロディ（音名と `-` `.`）・歌詞（ひらがな、音符1つに1音）を書く（`docs/song.md`、スキル `gmm-song-script`）。
+`gmm song <台本>` で `song.wav`、`gmm render` で歌詞カラオケの動画。歌は聴けないので、スペクトルの画像で歌が入っているかを確かめ、聴いていないことを利用者に伝える。
+
 BGM は `gmm bgm list` のカタログから、動画の雰囲気と「合う場面」で選び、`bgm: maou:<曲ID>` と書く（試聴はできないので、選んだ理由を利用者に伝える）。
 
 直し方の目安:

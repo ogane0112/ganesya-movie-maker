@@ -63,3 +63,7 @@ description: gmm の動画の BGM を選ぶ機能スキル。gmm bgm list のカ
 
 - フロントマターに `bgm:` がある（または BGM なしと決めた）
 - 選んだ理由を、渡すときに伝えられるようにメモした
+
+## 曲を作るとき
+
+カタログに合う曲がない・取れないときは、`gmm-song-script` で歌なし（`singer: none`）の曲を作り、`gmm song` の `song.wav` を `bgm:` に書いてもよい。
