@@ -111,7 +111,7 @@ export async function synthesizeAll(doc: SceneDoc, outDir: string, opts: TtsOpti
         text,
         file,
         seconds: wavSeconds(await readFile(path)),
-        mouth: JSON.parse(await readFile(lipPath, "utf8")),
+        mouth: smoothMouth(JSON.parse(await readFile(lipPath, "utf8"))),
       });
     }
   }
@@ -128,6 +128,40 @@ export function applyReadings(text: string, readings: Record<string, string>): s
   if (!keys.length) return text;
   const re = new RegExp(keys.map((k) => k.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|"), "g");
   return text.replace(re, (m) => readings[m]);
+}
+
+/** 口の開け閉めの最短の長さ（秒）。これより細かいと、立ち絵の差し替えがちらついて早口に見える */
+export const MOUTH_STEP = 0.12;
+
+/**
+ * 口パクをならす。MOUTH_STEP 秒の升目ごとに、口が開いている割合が 4 割以上なら開とし、
+ * 開が 3 升以上続くときは 3 升目を閉じる（開けっぱなしにならず、1 秒に 3〜4 回ほどの開け閉めになる）
+ */
+export function smoothMouth(spans: [number, number][], step = MOUTH_STEP): [number, number][] {
+  if (!spans.length) return [];
+  const end = Math.max(...spans.map(([, b]) => b));
+  const n = Math.ceil(end / step);
+  const open: boolean[] = [];
+  for (let i = 0; i < n; i++) {
+    const a = i * step;
+    const b = a + step;
+    const covered = spans.reduce((sum, [x, y]) => sum + Math.max(0, Math.min(b, y) - Math.max(a, x)), 0);
+    open.push(covered / step >= 0.4);
+  }
+  let run = 0;
+  for (let i = 0; i < n; i++) {
+    run = open[i] ? run + 1 : 0;
+    if (run === 3) (open[i] = false), (run = 0);
+  }
+  const out: [number, number][] = [];
+  const r = (x: number) => Math.round(x * 1000) / 1000;
+  for (let i = 0; i < n; i++) {
+    if (!open[i]) continue;
+    const last = out[out.length - 1];
+    if (last && Math.abs(last[1] - r(i * step)) < 1e-6) last[1] = r((i + 1) * step);
+    else out.push([r(i * step), r((i + 1) * step)]);
+  }
+  return out;
 }
 
 /** 仮音声用の口パク：0.16秒ごとに開け閉めする */

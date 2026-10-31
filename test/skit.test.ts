@@ -219,3 +219,15 @@ describe("効果音・声", () => {
     expect(m[0][1]).toBeCloseTo(0.5, 1);
   });
 });
+
+describe("口パクをならす", () => {
+  it("細かい開け閉めは升目にまとめ、開けっぱなしにしない", async () => {
+    const { smoothMouth, estimateMouth } = await import("../src/tts/index");
+    const m = smoothMouth(estimateMouth(2));
+    for (const [a, b] of m) expect(b - a).toBeGreaterThanOrEqual(0.12 - 1e-9);
+    for (let i = 1; i < m.length; i++) expect(m[i][0] - m[i - 1][1]).toBeGreaterThanOrEqual(0.12 - 1e-9);
+    // 1 秒あたりの開け閉めは 5 回まで
+    expect(m.length / 2).toBeLessThanOrEqual(5);
+    expect(smoothMouth([[0, 1]])).toEqual([[0, 0.24], [0.36, 0.6], [0.72, 0.96]]);
+  });
+});
