@@ -330,7 +330,7 @@ const Caption: React.FC<{ cap: SkitResolvedScene["captions"][number]; frame: num
   const longest = Math.max(...text.split("\n").map((l) => [...l].length));
   const pos = cap.pos ?? (cap.style === "pop" ? "top" : cap.style === "note" ? "bottom" : "center");
   const box = cap.style === "title" ? L.content : spotBox(L.content, pos);
-  const fit = (base: number) => Math.max(40, Math.min(base, Math.floor((box.width * 0.96) / Math.max(1, longest))));
+  const fit = (base: number) => Math.max(40, Math.min(base, Math.floor(((box.width - 32) * 0.94) / Math.max(1, longest))));
   const accent = theme.accent2 ?? theme.accent;
   let inner: React.ReactNode;
   switch (cap.style) {
@@ -408,6 +408,9 @@ const Caption: React.FC<{ cap: SkitResolvedScene["captions"][number]; frame: num
         textAlign: "center",
         whiteSpace: "pre-line",
         pointerEvents: "none",
+        // 傾けた大きな文字や縁取りが枠の端からはみ出さないように
+        padding: cap.style === "title" ? 0 : "28px 16px",
+        boxSizing: "border-box",
       }}
     >
       {inner}

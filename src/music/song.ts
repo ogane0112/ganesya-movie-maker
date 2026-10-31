@@ -194,6 +194,16 @@ export function buildSongTimeline(doc: SceneDoc, theme: Theme, cast: CastMember[
           karaoke: p.noteStarts.map((t) => frame(t) - start),
         };
       });
+    // show: の文字は、そのフレーズの頭から次のフレーズの頭まで大きく出す
+    const shows = audio.phrases
+      .filter((p) => p.scene === si)
+      .flatMap((p, k, list) => {
+        const show = sections[si].phrases[p.index].show;
+        if (!show) return [];
+        const from = Math.max(0, frame(p.start) - start - 3);
+        const to = list[k + 1] ? frame(list[k + 1].start) - start - 3 : end - start;
+        return [{ from, to, text: show, style: "impact" as const, pos: "top" as const }];
+      });
     const spec = scene.skit?.bg ?? DEFAULT_BG[sections[si].energy];
     const first = si === 0 && !sentences.length;
     return {
@@ -210,7 +220,7 @@ export function buildSongTimeline(doc: SceneDoc, theme: Theme, cast: CastMember[
         stage0: Object.fromEntries(cast.filter((c) => c.character).map((c) => [c.name, { on: true, pos: "center" as const, face: c.character!.defaultFace, flip: false }])),
         events: [],
         // 曲の頭（前奏）に題名
-        captions: first ? [{ from: 0, to: end - start, text: doc.meta.title, style: "title" as const }] : [],
+        captions: first ? [{ from: 0, to: end - start, text: doc.meta.title, style: "title" as const }] : shows,
         stamps: [],
         pics: [],
         fx: [],

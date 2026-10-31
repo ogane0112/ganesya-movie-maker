@@ -25,6 +25,7 @@ transpose: 2
 melody: C5 - D5 . E5 E5 - - | G4 - - - . . . . |
 lyrics: らららーん
 text: ラララーン
+show: ララ\\nラーン
 `;
 
 describe("楽譜の部品", () => {
@@ -101,6 +102,8 @@ describe("曲の台本", () => {
       expect(s.karaoke).toHaveLength(7); // 音符 5 つと間の休み 1 つの頭、終わり
       expect(s.mouth.length).toBe(5);
       expect(t.scenes[0].skit!.captions[0]).toMatchObject({ text: "てすと", style: "title" });
+      // show: はフレーズの間、上に大きく
+      expect(t.scenes[1].skit!.captions[0]).toMatchObject({ text: "ララ\\nラーン", style: "impact", pos: "top" });
       expect(t.audio.bgm).toMatchObject({ duck: 1, fadeIn: false });
     } finally {
       await rm(dir, { recursive: true, force: true });

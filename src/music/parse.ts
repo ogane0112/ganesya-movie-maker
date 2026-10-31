@@ -5,6 +5,7 @@
 //   melody: E5 - D5 C5 D5 - E5 - | G5 - - - . . . . |   メロディ。1つが1升目（既定は8分音符）。- で伸ばす、. は休み、| は小節の区切り
 //   lyrics: ずんだもちが                    歌詞（ひらがな）。音符1つに1音（きゃ・っ・ん も1音、ー は前の母音）
 //   text: ずんだ餅が                        画面に出す歌詞（省略すると lyrics をそのまま）
+//   show: DNS\n名前解決                     そのフレーズの間、画面に大きく出す文字（覚えたい用語など。\n で改行）
 //
 // 書き方は docs/song.md。
 import { parseFrontMatter, ScriptError } from "../parse.js";
@@ -88,7 +89,7 @@ export function parseSongScript(source: string): SceneDoc {
   delete meta.character;
   const transpose = Number(meta.transpose ?? 0);
 
-  type Phrase = { melody: string; line: number; lyrics?: string; text?: string };
+  type Phrase = { melody: string; line: number; lyrics?: string; text?: string; show?: string };
   type Cur = { heading: string; line: number; params: Record<string, string>; phrases: Phrase[] };
   const sections: Cur[] = [];
   let cur: Cur | null = null;
@@ -108,19 +109,19 @@ export function parseSongScript(source: string): SceneDoc {
       continue;
     }
     if (!line.trim() || /^\s*<!--.*-->\s*$/.test(line)) continue;
-    const kv = line.match(/^\s*(melody|lyrics|text)\s*[:：]\s*(.*)$/);
+    const kv = line.match(/^\s*(melody|lyrics|text|show)\s*[:：]\s*(.*)$/);
     if (!cur) {
       if (kv) problems.push(`${i + 1}行目: ## セクションより前に ${kv[1]}: があります`);
       continue;
     }
     if (!kv) {
-      problems.push(`${i + 1}行目: 曲の台本の行は melody: / lyrics: / text: のどれかです: ${line.trim().slice(0, 30)}`);
+      problems.push(`${i + 1}行目: 曲の台本の行は melody: / lyrics: / text: / show: のどれかです: ${line.trim().slice(0, 30)}`);
       continue;
     }
     const [, key, value] = kv;
     if (key === "melody") cur.phrases.push({ melody: value, line: i + 1 });
     else if (!cur.phrases.length) problems.push(`${i + 1}行目: ${key}: の前に melody: を書いてください`);
-    else cur.phrases[cur.phrases.length - 1][key as "lyrics" | "text"] = value.trim();
+    else cur.phrases[cur.phrases.length - 1][key as "lyrics" | "text" | "show"] = value.trim();
   }
 
   const scenes: Scene[] = [];
@@ -162,7 +163,7 @@ export function parseSongScript(source: string): SceneDoc {
           pitched.forEach((n, k) => (n.lyric = mora[k]));
         }
         for (const n of notes) if (n.key !== null) n.key += transpose;
-        phrases.push({ at, notes });
+        phrases.push({ at, notes, ...(ph.show && { show: ph.show }) });
         sentences.push({ text: ph.text ?? ph.lyrics ?? "♪", speaker: name });
         at += steps;
       } catch (e) {

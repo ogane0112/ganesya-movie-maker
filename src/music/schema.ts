@@ -22,6 +22,7 @@ export const SongSection = z.object({
   chords: z.array(z.string()),
   energy: Energy,
   /** フレーズ：セクションの頭からの升目の位置と音符 */
-  phrases: z.array(z.object({ at: z.number().int().min(0), notes: z.array(Note) })),
+  /** show: そのフレーズの間、画面に大きく出す文字（覚えたい用語など） */
+  phrases: z.array(z.object({ at: z.number().int().min(0), notes: z.array(Note), show: z.string().optional() })),
 });
 export type SongSection = z.infer<typeof SongSection>;
