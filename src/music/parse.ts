@@ -6,10 +6,13 @@
 //   lyrics: ずんだもちが                    歌詞（ひらがな）。音符1つに1音（きゃ・っ・ん も1音、ー は前の母音）
 //   text: ずんだ餅が                        画面に出す歌詞（省略すると lyrics をそのまま）
 //   show: DNS\n名前解決                     そのフレーズの間、画面に大きく出す文字（覚えたい用語など。\n で改行）
+//   face: surprised                         そのフレーズから歌う人の表情を変える
+//   :::diagram … :::                        解説動画の部品（図解・箇条書き・用語カード…）。{n} は n 番目のフレーズで出す。
+//                                           部品があると、画面はスライド（左）と歌う人（右）になる
 //
 // 書き方は docs/song.md。
-import { parseFrontMatter, ScriptError } from "../parse.js";
-import { SceneDoc, type Scene } from "../schema.js";
+import { buildElement, parseArgs, parseFrontMatter, referencedSentences, ScriptError } from "../parse.js";
+import { Element, SceneDoc, type Scene } from "../schema.js";
 import { Energy, type Note } from "./schema.js";
 import { isKana, noteToMidi, parseChord, splitMora } from "./score.js";
 
@@ -89,8 +92,8 @@ export function parseSongScript(source: string): SceneDoc {
   delete meta.character;
   const transpose = Number(meta.transpose ?? 0);
 
-  type Phrase = { melody: string; line: number; lyrics?: string; text?: string; show?: string };
-  type Cur = { heading: string; line: number; params: Record<string, string>; phrases: Phrase[] };
+  type Phrase = { melody: string; line: number; lyrics?: string; text?: string; show?: string; face?: string };
+  type Cur = { heading: string; line: number; params: Record<string, string>; phrases: Phrase[]; elements: { el: unknown; line: number }[] };
   const sections: Cur[] = [];
   let cur: Cur | null = null;
   for (let i = next; i < lines.length; i++) {
@@ -105,23 +108,41 @@ export function parseSongScript(source: string): SceneDoc {
         params[m[1]] = m[2].replace(/^"(.*)"$/, "$1");
         heading = heading.slice(0, m.index).trim();
       }
-      sections.push((cur = { heading, line: i + 1, params, phrases: [] }));
+      sections.push((cur = { heading, line: i + 1, params, phrases: [], elements: [] }));
       continue;
     }
     if (!line.trim() || /^\s*<!--.*-->\s*$/.test(line)) continue;
-    const kv = line.match(/^\s*(melody|lyrics|text|show)\s*[:：]\s*(.*)$/);
+    // 解説動画の部品（::: で閉じる）
+    const block = line.match(/^:::(\w+)\s*(.*)$/);
+    if (block) {
+      const start = i + 1;
+      const body: string[] = [];
+      i++;
+      while (i < lines.length && lines[i].trim() !== ":::") body.push(lines[i++]);
+      if (i >= lines.length) problems.push(`${start}行目: :::${block[1]} が閉じられていません`);
+      if (!cur) problems.push(`${start}行目: ## セクションより前に部品があります`);
+      else {
+        try {
+          cur.elements.push({ el: buildElement(block[1], parseArgs(block[2]), body), line: start });
+        } catch (e) {
+          problems.push(`${start}行目: ${(e as Error).message}`);
+        }
+      }
+      continue;
+    }
+    const kv = line.match(/^\s*(melody|lyrics|text|show|face)\s*[:：]\s*(.*)$/);
     if (!cur) {
       if (kv) problems.push(`${i + 1}行目: ## セクションより前に ${kv[1]}: があります`);
       continue;
     }
     if (!kv) {
-      problems.push(`${i + 1}行目: 曲の台本の行は melody: / lyrics: / text: / show: のどれかです: ${line.trim().slice(0, 30)}`);
+      problems.push(`${i + 1}行目: 曲の台本の行は melody: / lyrics: / text: / show: / face: か、::: の部品です: ${line.trim().slice(0, 30)}`);
       continue;
     }
     const [, key, value] = kv;
     if (key === "melody") cur.phrases.push({ melody: value, line: i + 1 });
     else if (!cur.phrases.length) problems.push(`${i + 1}行目: ${key}: の前に melody: を書いてください`);
-    else cur.phrases[cur.phrases.length - 1][key as "lyrics" | "text" | "show"] = value.trim();
+    else cur.phrases[cur.phrases.length - 1][key as "lyrics" | "text" | "show" | "face"] = value.trim();
   }
 
   const scenes: Scene[] = [];
@@ -164,20 +185,32 @@ export function parseSongScript(source: string): SceneDoc {
         }
         for (const n of notes) if (n.key !== null) n.key += transpose;
         phrases.push({ at, notes, ...(ph.show && { show: ph.show }) });
-        sentences.push({ text: ph.text ?? ph.lyrics ?? "♪", speaker: name });
+        sentences.push({ text: ph.text ?? ph.lyrics ?? "♪", speaker: name, ...(ph.face && { face: ph.face }) });
         at += steps;
       } catch (e) {
         problems.push(`${ph.line}行目: ${(e as Error).message}`);
       }
     }
     const bars = Math.max(Number(p.bars ?? 0), Math.ceil(at / grid), chords.length, 1);
+    const elements: Element[] = [];
+    for (const { el, line } of sec.elements) {
+      const r = Element.safeParse(el);
+      if (!r.success) {
+        problems.push(`${line}行目: 部品の指定が不正です: ${r.error.issues.map((x) => x.message).join(", ")}`);
+        continue;
+      }
+      for (const n of referencedSentences(r.data)) {
+        if (n > sentences.length) problems.push(`${line}行目: {${n}} を指定していますが、セクション「${sec.heading}」のフレーズは${sentences.length}つです（{n} は n 番目のフレーズ）`);
+      }
+      elements.push(r.data);
+    }
     if (!chords.length) problems.push(`${sec.line}行目: セクション「${sec.heading}」に chords="C G Am F" のようにコードを書いてください`);
     scenes.push({
       id: `s${String(scenes.length + 1).padStart(2, "0")}`,
       heading: sec.heading,
       showHeading: false,
       sentences,
-      elements: [],
+      elements,
       skit: { ...(p.bg && { bg: p.bg }), transition: (p.transition as "cut") ?? "cut", tail: [] },
       song: { grid, bars, chords: chords.length ? chords : ["C"], energy: energy.success ? energy.data : "mid", phrases },
     });

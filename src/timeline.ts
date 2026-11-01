@@ -85,7 +85,7 @@ export async function buildTimeline(
   return { meta: doc.meta, theme, audio: audioAssets, durationInFrames: start, scenes, ...(cast ? { cast } : { character }) };
 }
 
-async function resolveElement(
+export async function resolveElement(
   el: Element,
   at: (n: number | undefined) => number,
   codeTheme: string,

@@ -305,7 +305,7 @@ async function prepareSong(doc: SceneDoc, input: string, outDir: string, opts: P
   await copyFile(join(outDir, "public", song.mix), join(outDir, "song.wav"));
   const theme = await loadTheme(doc.meta.theme, input, outDir);
   const cast = await loadCast(doc, input, outDir);
-  const timeline = buildSongTimeline(doc, theme, cast, song, await prepareBackgrounds(doc, input, outDir));
+  const timeline = await buildSongTimeline(doc, theme, cast, song, await prepareBackgrounds(doc, input, outDir));
   await writeFile(join(outDir, "timeline.json"), JSON.stringify(timeline, null, 2));
   await writeFile(join(outDir, "subtitles.srt"), toSrt(timeline));
   const credits = [song.credit, ...cast.map((c) => c.character?.credit)].filter(Boolean);

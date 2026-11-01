@@ -96,7 +96,7 @@ describe("曲の台本", () => {
       expect(audio.seconds).toBeCloseTo(14, 0);
       expect(audio.phrases).toHaveLength(1);
       expect(audio.phrases[0].start).toBeCloseTo(4, 5); // サビの頭
-      const t = buildSongTimeline(doc, THEMES.pop, [{ name: "ずんだもん", color: "#3a7a37" }], audio);
+      const t = await buildSongTimeline(doc, THEMES.pop, [{ name: "ずんだもん", color: "#3a7a37" }], audio);
       const s = t.scenes[1].sentences[0];
       expect(s.from).toBe(0);
       expect(s.karaoke).toHaveLength(7); // 音符 5 つと間の休み 1 つの頭、終わり
@@ -109,6 +109,33 @@ describe("曲の台本", () => {
       await rm(dir, { recursive: true, force: true });
     }
   }, 60000);
+});
+
+describe("スライドの図解に合わせて歌う", () => {
+  it("部品の {n} はフレーズで出し、画面は解説動画（見出し・部品・立ち絵）", async () => {
+    const withParts = src.replace("show: ララ\\nラーン", "show: ララ\\nラーン\nface: surprised\n\n:::bullets\n- {1} らららん\n:::");
+    const d = parseSongScript(withParts);
+    expect(d.scenes[1].elements).toHaveLength(1);
+    expect(d.scenes[1].sentences[0].face).toBe("surprised");
+    const dir = await mkdtemp(join(tmpdir(), "gmm-song-"));
+    try {
+      const audio = await buildSongAudio(d, dir, {});
+      const ch = { kind: "builtin" as const, name: "x", width: 340, height: 500, defaultFace: "normal" };
+      const t = await buildSongTimeline(d, THEMES.pop, [{ name: "ずんだもん", color: "#000", character: ch }], audio);
+      expect(t.skit).toBeUndefined();
+      expect(t.character).toEqual(ch);
+      expect(t.scenes[1].showHeading).toBe(true);
+      const el = t.scenes[1].elements[0] as { items: { from: number }[] };
+      expect(el.items[0].from).toBe(Math.max(0, t.scenes[1].sentences[0].from - 3));
+      expect(t.scenes[1].sentences[0].face).toBe("surprised");
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  }, 60000);
+
+  it("{n} がフレーズの数を超えるとエラー", () => {
+    expect(() => parseSongScript(src + "\n:::bullets\n- {3} x\n:::\n")).toThrow(/\{3\} を指定していますが/);
+  });
 });
 
 describe("歌の口パクとカラオケ", () => {

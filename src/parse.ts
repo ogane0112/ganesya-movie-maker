@@ -211,7 +211,7 @@ export function takeSentenceMarkers(sentences: string[], marks: string[] = []): 
   return out;
 }
 
-function parseArgs(src: string): BlockArgs {
+export function parseArgs(src: string): BlockArgs {
   const args: BlockArgs = { params: {} };
   const re = /(\w+)=("([^"]*)"|\S+)|(\{\d+\})/g;
   let m: RegExpExecArray | null;
@@ -240,7 +240,7 @@ function takeMarkers(text: string): { text: string; at?: number; emphasisAt?: nu
   return { text: rest, at, emphasisAt };
 }
 
-function buildElement(kind: string, args: BlockArgs, body: string[]): unknown {
+export function buildElement(kind: string, args: BlockArgs, body: string[]): unknown {
   switch (kind) {
     case "bullets": {
       const items = body
@@ -343,7 +343,7 @@ function parseHighlights(spec: string) {
   return out;
 }
 
-function referencedSentences(el: Element): number[] {
+export function referencedSentences(el: Element): number[] {
   switch (el.type) {
     case "bullets":
       return el.items.flatMap((x) => [x.at, x.emphasisAt]).filter((n): n is number => n !== undefined);

@@ -48,7 +48,11 @@ export const Character: React.FC<{ timeline: Timeline; character: ResolvedCharac
   // 登場アニメーションは動画の最初だけ（シーン単位の書き出しでは2番目以降のシーンで出さない）
   const enter = (timeline.segment?.index ?? 0) > 0 ? 1 : interpolate(frame, [0, 12], [0, 1], { extrapolateRight: "clamp" });
   // 話している間だけ、ゆっくり上下に揺れる
-  const bob = speaking ? Math.sin((frame / fps) * Math.PI * 2 * 0.8) * 4 : 0;
+  // 曲では拍に合わせて弾み、小節ごとに左右に揺れる（踊り）。話している間はゆっくり上下に揺れる
+  const beat = timeline.song ? (frame / fps) * (timeline.song.bpm / 60) : 0;
+  // 立ち絵の下端（切った所）が浮かないよう、曲では下に沈む向きに弾む（傾きで持ち上がる分も沈めておく）
+  const bob = timeline.song ? 22 + Math.abs(Math.sin(Math.PI * beat)) * 12 : speaking ? Math.sin((frame / fps) * Math.PI * 2 * 0.8) * 4 : 0;
+  const sway = timeline.song ? Math.sin((Math.PI * beat) / 2) * 2.5 : 0;
   return (
     <div
       data-gmm-el="character"
@@ -59,7 +63,8 @@ export const Character: React.FC<{ timeline: Timeline; character: ResolvedCharac
         width: character.width,
         height: character.height,
         opacity: enter,
-        transform: `translateY(${(1 - enter) * 40 + bob}px)`,
+        transform: `translateY(${(1 - enter) * 40 + bob}px) rotate(${sway}deg)`,
+        transformOrigin: "bottom center",
       }}
     >
       <CharacterArt character={character} face={face} mouthOpen={mouthOpen} blink={blink} />

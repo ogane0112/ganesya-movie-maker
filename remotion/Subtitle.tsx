@@ -3,6 +3,7 @@ import { useCurrentFrame } from "remotion";
 import type { CastMember, ResolvedScene } from "../src/schema";
 import type { Layout } from "./layout";
 import type { Theme } from "./theme";
+import { karaokeProgress } from "./skit/SkitScene";
 
 export const Subtitle: React.FC<{ scene: ResolvedScene; box: NonNullable<Layout["subtitle"]>; theme: Theme; cast?: CastMember[] }> = ({
   scene,
@@ -72,6 +73,22 @@ export const Subtitle: React.FC<{ scene: ResolvedScene; box: NonNullable<Layout[
           </div>
         )}
         {s.text}
+        {/* 曲の歌詞：歌ったところまで色を付ける（カラオケ） */}
+        {s.karaoke && (
+          <span
+            aria-hidden
+            style={{
+              position: "absolute",
+              inset: 0,
+              padding: "6px 32px",
+              boxSizing: "border-box",
+              color: theme.marker.startsWith("rgba") ? "#ffe14d" : theme.marker,
+              clipPath: `inset(0 ${100 - 100 * karaokeProgress(s.karaoke, frame)}% 0 0)`,
+            }}
+          >
+            {s.text}
+          </span>
+        )}
       </div>
     </div>
   );

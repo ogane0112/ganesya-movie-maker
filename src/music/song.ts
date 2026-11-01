@@ -8,6 +8,7 @@ import { toWav } from "../motion/synth.js";
 import type { CastMember, ResolvedScene, SceneDoc, Timeline } from "../schema.js";
 import type { ResolvedBg } from "../skit/schema.js";
 import { parseBgSpec } from "../skit/timeline.js";
+import { resolveElement } from "../timeline.js";
 import { arrange, MUSIC_RATE, songTimes } from "./arrange.js";
 import { singerName } from "./parse.js";
 import { midiToName } from "./score.js";
@@ -169,8 +170,13 @@ function reverb(x: Float32Array): [Float32Array, Float32Array] {
   return out;
 }
 
-/** 曲の動画のタイムライン。ネタ動画（skit）の舞台で、歌う人が真ん中に立ち、歌詞がカラオケで出る */
-export function buildSongTimeline(doc: SceneDoc, theme: Theme, cast: CastMember[], audio: SongAudio, bgs: Record<string, ResolvedBg> = {}): Timeline {
+/**
+ * 曲の動画のタイムライン。歌詞はカラオケで出る。
+ * - 部品（:::diagram など）のある曲：解説動画のスライド（左）に、フレーズに合わせて図解が出て、歌う人は右に立つ
+ * - 部品のない曲：ネタ動画（skit）の舞台で、歌う人が真ん中に立つ
+ */
+export async function buildSongTimeline(doc: SceneDoc, theme: Theme, cast: CastMember[], audio: SongAudio, bgs: Record<string, ResolvedBg> = {}): Promise<Timeline> {
+  if (doc.scenes.some((s) => s.elements.length)) return buildSlidesTimeline(doc, theme, cast, audio);
   const { fps, bpm } = doc.meta;
   const sections = doc.scenes.map((s) => s.song!);
   const { starts, total } = songTimes(bpm, sections);
@@ -192,6 +198,7 @@ export function buildSongTimeline(doc: SceneDoc, theme: Theme, cast: CastMember[
           speaker: name,
           mouth: p.mouth.map(([a, b]): [number, number] => [from + frame(a), from + Math.max(frame(b), frame(a) + 1)]),
           karaoke: p.noteStarts.map((t) => frame(t) - start),
+          ...(scene.sentences[p.index].face && { face: scene.sentences[p.index].face }),
         };
       });
     // show: の文字は、そのフレーズの頭から次のフレーズの頭まで大きく出す
@@ -235,6 +242,58 @@ export function buildSongTimeline(doc: SceneDoc, theme: Theme, cast: CastMember[
     scenes,
     cast,
     skit: { format: doc.meta.format, style: doc.meta.style, subtitleStyle: doc.meta.subtitleStyle ?? "bold" },
+    song: { bpm, warnings: audio.warnings },
+  };
+}
+
+/** スライドの曲：解説動画の画面（見出し・部品・右に立ち絵・下に字幕）に、カラオケの歌詞と、拍に合わせて弾む歌う人 */
+async function buildSlidesTimeline(doc: SceneDoc, theme: Theme, cast: CastMember[], audio: SongAudio): Promise<Timeline> {
+  const { fps, bpm } = doc.meta;
+  const sections = doc.scenes.map((s) => s.song!);
+  const { starts, total } = songTimes(bpm, sections);
+  const frame = (sec: number) => Math.round(sec * fps);
+  const tail = 1.5;
+  const name = singerName(doc.meta.singer);
+  const scenes: ResolvedScene[] = [];
+  for (const [si, scene] of doc.scenes.entries()) {
+    const start = frame(starts[si]);
+    const end = si === doc.scenes.length - 1 ? frame(total + tail) : frame(starts[si + 1]);
+    // フレーズの番号（{n}）→ 文。休みだけのフレーズは文にならないので、番号で引けるようにする
+    const byIndex = new Map<number, ResolvedScene["sentences"][number]>();
+    for (const p of audio.phrases.filter((x) => x.scene === si)) {
+      const from = frame(p.start) - start;
+      byIndex.set(p.index, {
+        text: scene.sentences[p.index].text,
+        from,
+        durationInFrames: Math.max(1, frame(p.end) - frame(p.start)),
+        speaker: name,
+        mouth: p.mouth.map(([a, b]): [number, number] => [from + frame(a), from + Math.max(frame(b), frame(a) + 1)]),
+        karaoke: p.noteStarts.map((t) => frame(t) - start),
+        ...(scene.sentences[p.index].face && { face: scene.sentences[p.index].face }),
+      });
+    }
+    // 部品はフレーズの少し前（3 フレーム）に出して、歌い出しと同時に見えるようにする
+    const at = (n: number | undefined) => (n === undefined ? 0 : Math.max(0, (byIndex.get(n - 1)?.from ?? 0) - 3));
+    const elements = [];
+    for (const el of scene.elements) elements.push(await resolveElement(el, at, theme.codeTheme, doc.meta.glossary));
+    const onlyTitle = elements.length > 0 && elements.every((e) => e.type === "title");
+    scenes.push({
+      id: scene.id,
+      heading: scene.heading,
+      showHeading: !onlyTitle,
+      start,
+      durationInFrames: end - start,
+      sentences: [...byIndex.values()].sort((a, b) => a.from - b.from),
+      elements,
+    });
+  }
+  return {
+    meta: doc.meta,
+    theme,
+    audio: { bgm: { src: audio.mix, volume: 1, duck: 1, fadeIn: false, ...(audio.credit && { credit: audio.credit }) } },
+    durationInFrames: frame(total + tail),
+    scenes,
+    character: cast[0]?.character,
     song: { bpm, warnings: audio.warnings },
   };
 }
