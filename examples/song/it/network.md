@@ -1,10 +1,11 @@
 ---
-title: 天国と地獄で覚える応用情報 ネットワーク編
+title: 天国と地獄で覚えるIT用語 ネットワーク編
 layout: song
 bpm: 120
 music: pop
 singer: zundamon
 transpose: 3             # ハ長調 → 変ホ長調。歌いやすい高さに
+fit: auto                # 歌詞の音の数に合わせて音符を分ける・まとめる
 character: builtin
 theme: pop
 ---
@@ -15,9 +16,9 @@ theme: pop
  1 本 1 テーマ（ネットワーク編）。用語ごとに 1 場面（4 小節・4 フレーズ）。左のスライドに、歌うフレーズに合わせて図解が出る。
 -->
 
-## 天国と地獄で覚える応用情報 chords="C G7" grid=16 energy=mid
+## 天国と地獄で覚えるIT用語 chords="C G7" grid=16 energy=mid
 :::title
-天国と地獄で覚える応用情報
+天国と地獄で覚えるIT用語
 ネットワーク編
 :::
 

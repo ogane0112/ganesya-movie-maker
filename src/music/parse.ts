@@ -91,6 +91,8 @@ export function parseSongScript(source: string): SceneDoc {
   meta.characters = meta.character && meta.character !== "none" ? { [name]: String(meta.character) } : {};
   delete meta.character;
   const transpose = Number(meta.transpose ?? 0);
+  const fit = meta.fit === "auto";
+  delete meta.fit;
 
   type Phrase = { melody: string; line: number; lyrics?: string; text?: string; show?: string; face?: string };
   type Cur = { heading: string; line: number; params: Record<string, string>; phrases: Phrase[]; elements: { el: unknown; line: number }[] };
@@ -171,13 +173,20 @@ export function parseSongScript(source: string): SceneDoc {
     const sentences: Scene["sentences"] = [];
     for (const ph of sec.phrases) {
       try {
-        const { notes, steps } = parseMelody(ph.melody, grid);
-        const pitched = notes.filter((n) => n.key !== null);
+        const parsed = parseMelody(ph.melody, grid);
+        const { steps } = parsed;
+        let notes = parsed.notes;
+        let pitched = notes.filter((n) => n.key !== null);
         if (sung) {
           if (!ph.lyrics) throw new Error("melody: の次に lyrics: で歌詞（ひらがな）を書いてください");
           const mora = splitMora(ph.lyrics);
           const bad = mora.filter((m) => !isKana(m));
           if (bad.length) throw new Error(`lyrics: はひらがな・カタカナで書いてください（漢字などは text: に）: ${bad.slice(0, 5).join(" ")}`);
+          // fit: auto なら、歌詞の音の数に合わせて音符を分けたりまとめたりする（同じ旋律を違う歌詞で繰り返すとき）
+          if (mora.length !== pitched.length && fit) {
+            notes = fitNotes(notes, mora.length);
+            pitched = notes.filter((n) => n.key !== null);
+          }
           if (mora.length !== pitched.length) {
             throw new Error(`歌詞が ${mora.length} 音（${mora.join(" ")}）ですが、音符は ${pitched.length} 個です。音符1つに1音にしてください（伸ばすなら - 、ー は1音に数えます）`);
           }
@@ -218,4 +227,44 @@ export function parseSongScript(source: string): SceneDoc {
   if (!scenes.length) problems.push("セクションがありません（## イントロ chords=\"C G Am F\" のように始めてください）");
   if (problems.length) throw new ScriptError(problems);
   return SceneDoc.parse({ version: 1, meta: { ...meta, layout: "song", style: meta.style ?? "meme", subtitleStyle: meta.subtitleStyle ?? "bold" }, scenes });
+}
+
+/**
+ * 音符の数を n 個（休みを除く）にそろえる。旋律の形はできるだけ残す。
+ * 多すぎる歌詞：いちばん長い音を同じ高さの 2 つに分ける（長い音がなければ、すぐ後の休みを音にする）。
+ * 少なすぎる歌詞：いちばん短い、休みをはさまずに続く 2 音を 1 つにまとめる。
+ * できなければそのまま返す（呼び出し側が数の違いをエラーにする）
+ */
+export function fitNotes(input: Note[], n: number): Note[] {
+  const notes = input.map((x) => ({ ...x }));
+  const count = () => notes.filter((x) => x.key !== null).length;
+  let guard = 64;
+  while (count() < n && guard--) {
+    let best = -1;
+    notes.forEach((x, i) => x.key !== null && x.steps >= 2 && (best < 0 || x.steps > notes[best].steps) && (best = i));
+    if (best >= 0) {
+      const x = notes[best];
+      const a = Math.ceil(x.steps / 2);
+      notes.splice(best, 1, { ...x, steps: a }, { ...x, steps: x.steps - a });
+      continue;
+    }
+    // 長い音がない：前に音のある休みを 1 升だけ音にする
+    const r = notes.findIndex((x, i) => x.key === null && i > 0 && notes[i - 1].key !== null);
+    if (r < 0) break;
+    const prev = notes[r - 1];
+    notes.splice(r, 0, { key: prev.key, steps: 1, lyric: "" });
+    notes[r + 1].steps--;
+    if (notes[r + 1].steps === 0) notes.splice(r + 1, 1);
+  }
+  while (count() > n && guard--) {
+    let best = -1;
+    for (let i = 0; i + 1 < notes.length; i++) {
+      if (notes[i].key === null || notes[i + 1].key === null) continue;
+      if (best < 0 || notes[i].steps + notes[i + 1].steps < notes[best].steps + notes[best + 1].steps) best = i;
+    }
+    if (best < 0) break;
+    notes[best].steps += notes[best + 1].steps;
+    notes.splice(best + 1, 1);
+  }
+  return notes;
 }

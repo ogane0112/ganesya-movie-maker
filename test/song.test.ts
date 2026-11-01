@@ -5,7 +5,7 @@ import { describe, expect, it } from "vitest";
 import { THEMES } from "../remotion/theme";
 import { karaokeProgress } from "../remotion/skit/SkitScene";
 import { arrange, songTimes } from "../src/music/arrange";
-import { parseMelody, parseSongScript } from "../src/music/parse";
+import { fitNotes, parseMelody, parseSongScript } from "../src/music/parse";
 import { noteToMidi, parseChord, splitMora } from "../src/music/score";
 import { mouthFromPhonemes, SING_FPS } from "../src/music/sing";
 import { buildSongAudio, buildSongTimeline } from "../src/music/song";
@@ -47,6 +47,25 @@ describe("楽譜の部品", () => {
       { key: 67, steps: 1, lyric: "" },
     ]);
     expect(() => parseMelody("C4 - - | D4", 8)).toThrow(/1 小節目が 3 升/);
+  });
+});
+
+describe("fit: auto（歌詞の音の数に音符を合わせる）", () => {
+  const { notes } = parseMelody("C4 - - - D4 E4 . .", 8);
+  const total = (ns: { steps: number }[]) => ns.reduce((a, b) => a + b.steps, 0);
+  const pitched = (ns: { key: number | null }[]) => ns.filter((x) => x.key !== null).length;
+  it("多ければ長い音を分け、少なければ短い音をまとめる。長さは変わらない", () => {
+    const more = fitNotes(notes, 5);
+    expect(pitched(more)).toBe(5);
+    expect(total(more)).toBe(8);
+    expect(more[0].key).toBe(60);
+    const fewer = fitNotes(notes, 2);
+    expect(pitched(fewer)).toBe(2);
+    expect(total(fewer)).toBe(8);
+  });
+  it("台本の fit: auto で、数の違う歌詞も通る", () => {
+    const d = parseSongScript(src.replace("transpose: 2", "transpose: 2\nfit: auto").replace("lyrics: らららーん", "lyrics: らららららら"));
+    expect(d.scenes[1].song!.phrases[0].notes.filter((n) => n.key !== null)).toHaveLength(6);
   });
 });
 
