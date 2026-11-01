@@ -73,7 +73,8 @@ function measureSubtitle(): SubtitleMeasurement | null {
   const origin = canvas.getBoundingClientRect();
   const r = box.getBoundingClientRect();
   return {
-    text: text.textContent ?? "",
+    // カラオケの色付け（aria-hidden の重ね書き）は数えない
+    text: [...text.childNodes].filter((n) => !(n instanceof HTMLElement && n.getAttribute("aria-hidden"))).map((n) => n.textContent ?? "").join(""),
     lines: Math.round(text.getBoundingClientRect().height / parseFloat(getComputedStyle(text).lineHeight)),
     rect: { x: r.left - origin.left, y: r.top - origin.top, width: r.width, height: r.height },
   };
